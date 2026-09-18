@@ -1,0 +1,331 @@
+Vreau să construiești un plugin WordPress profesional numit "JetSync", gândit ca alternativă și succesor pentru datele și structurile create cu JetEngine.
+
+CONTEXT
+Pluginul trebuie să permită:
+1. Detectarea și clonarea configurațiilor create în JetEngine:
+- Custom Post Types
+- Custom Taxonomies
+- Meta Boxes / Meta Fields
+- Relații între obiecte (post-to-post, post-to-taxonomy, etc. dacă sunt suportate în implementarea existentă)
+- Configurațiile necesare pentru listing-uri / templates bazate pe aceste structuri
+
+2. Funcționarea inițială în paralel cu JetEngine:
+- JetSync citește structurile existente create prin JetEngine
+- le importă/clonază în propria sa schemă internă
+- poate sincroniza incremental modificările
+- oferă un mod de compatibilitate în care site-ul poate continua să folosească JetEngine până la validarea completă
+
+3. Decuplarea finală de JetEngine:
+- după migrare, JetEngine poate fi dezactivat
+- CPT-urile, taxonomiile, meta fields, relațiile și datele aferente trebuie să rămână intacte
+- JetSync trebuie să preia înregistrarea și administrarea acestor structuri exclusiv prin cod propriu
+
+4. Administrarea completă ulterioară:
+- o interfață de administrare în wp-admin pentru editarea:
+  - CPT-urilor
+  - taxonomiilor
+  - meta boxes / meta fields
+  - relațiilor
+  - listing-urilor
+- posibilitatea de a crea listing-uri bazate pe CPT-urile migrate sau noi
+- arhitectură extensibilă pentru integrare cu Elementor, Gutenberg și eventual shortcode/block rendering propriu
+
+OBIECTIVE TEHNICE
+- Plugin enterprise-grade, modular, OOP, namespaced, PSR-4-like structure
+- Cod clar, comentat unde este necesar, sigur și ușor de extins
+- Respectă WordPress Coding Standards
+- Folosește:
+  - register_post_type
+  - register_taxonomy
+  - register_meta / post meta APIs
+  - custom admin pages cu Settings API / admin UI modern
+  - DB schema custom doar unde este justificat (mai ales pentru relații și configurații interne)
+- Să nu depindă de JetEngine pentru runtime, după migrare
+- Să poată importa din JetEngine dacă acesta este activ
+- Să aibă mecanisme defensive pentru lipsa JetEngine sau structuri inconsistente
+
+LIMBAJ ȘI STIL
+- Livrează cod producție-ready, nu pseudo-cod
+- Explică pe scurt fiecare etapă înainte de implementare
+- După fiecare etapă, arată structura fișierelor create și codul complet
+- Nu sări direct la tot pluginul; construiește incremental
+- La fiecare etapă verifică backward compatibility și migrarea datelor
+- Când există ambiguitate legată de stocarea internă JetEngine, creează o abstractizare care permite adaptoare multiple de import
+
+ARHITECTURA GENERALĂ DORITĂ
+Vreau o arhitectură pe module:
+
+1. Core
+- bootstrap plugin
+- autoloader
+- service container simplu sau service registry
+- activare/dezactivare
+- versioning
+- capabilities
+- logger
+- error handler admin-friendly
+
+2. Compatibility Layer
+- detector JetEngine
+- import adapters pentru:
+  - CPT definitions
+  - Taxonomy definitions
+  - Meta box / meta field definitions
+  - Relations definitions
+  - eventual listing definitions dacă sunt accesibile
+- citire defensivă din opțiuni, post types, meta, tabele custom sau API-uri JetEngine dacă există
+- compat mode care să poată rula fără fatal errors chiar dacă JetEngine lipsește
+
+3. Domain Registry
+- registru intern JetSync pentru:
+  - content types
+  - taxonomies
+  - fields
+  - relations
+  - listings
+- stocare internă proprie, separată de JetEngine
+- posibil export/import JSON
+- versioned schema definitions
+
+4. Runtime Registration
+- înregistrează CPT-uri și taxonomii din registry-ul JetSync
+- atașează meta fields
+- expune relațiile
+- asigură că după dezactivarea JetEngine, structurile rămân funcționale
+
+5. Data Migration
+- scan inițial
+- import full
+- sync incremental
+- dry-run mode
+- migration reports
+- rollback points unde este posibil
+- integrity checker pentru:
+  - post counts
+  - term counts
+  - meta keys
+  - relation counts
+
+6. Admin UI
+- meniu principal JetSync
+- dashboard overview
+- wizard de import din JetEngine
+- ecrane CRUD pentru:
+  - CPT-uri
+  - taxonomii
+  - fields/meta boxes
+  - relations
+  - listings
+- tools:
+  - re-sync
+  - validate
+  - repair
+  - export/import config
+- UX clar, orientat spre power users WordPress
+
+7. Listings Engine
+- MVP pentru listings:
+  - definire sursă (CPT / query)
+  - template fields mapping
+  - loop rendering
+  - shortcode
+  - Gutenberg block minim
+- ulterior pregătit pentru Elementor integration bridge
+
+8. Storage Design
+- decide explicit ce se stochează în:
+  - wp_options
+  - custom tables JetSync
+  - post meta / term meta / user meta
+- relațiile trebuie proiectate robust, performant și independent de JetEngine
+- dacă e nevoie, creează tabel custom pentru relations și relation meta
+
+9. Security / Quality
+- nonce checks
+- capability checks
+- sanitization / escaping
+- uninstall behavior clar
+- nu șterge date implicit fără confirmare
+- unit-test friendly architecture
+- hooks/actions/filters pentru extensibilitate
+
+CERINȚE FUNCȚIONALE DETALIATE
+
+A. Clonare CPT din JetEngine
+- detectează toate CPT-urile definite prin JetEngine
+- extrage:
+  - slug
+  - labels
+  - supports
+  - public flags
+  - archive
+  - rewrite
+  - menu icon
+  - REST settings
+  - capabilities relevante
+- salvează aceste definiții în registrul intern JetSync
+- permite editarea lor în JetSync
+- după migrare, JetSync le înregistrează nativ în WordPress
+
+B. Clonare taxonomii
+- detectează taxonomiile create prin JetEngine
+- mapează object types asociate
+- copiază labels, rewrite, hierarchical, public flags etc.
+- stochează în registry-ul JetSync
+- permite reatașare la CPT-urile migrate
+
+C. Clonare meta boxes / meta fields
+- detectează grupurile de fields și fields individuale
+- păstrează:
+  - field label
+  - key/name
+  - field type
+  - default value
+  - options pentru select/radio/checkbox
+  - required
+  - conditional logic dacă există
+  - context/placement unde este posibil
+- stabilește o schemă internă neutră, independentă de JetEngine
+- la runtime, salvează și afișează datele prin JetSync
+- păstrează meta keys compatibile cu datele deja salvate
+
+D. Clonare relații
+- detectează relațiile existente
+- identifică parent object / child object
+- tipul relației (one-to-one, one-to-many, many-to-many unde este cazul)
+- dacă există meta pe relație, o clonează
+- proiectează storage propriu pentru relații în JetSync
+- adaugă tools de migrare a legăturilor existente
+- oferă API intern pentru get_related_items / set_related_items / sync relationship graph
+
+E. Păstrarea datelor existente
+- nu duplica inutil postările sau termenii dacă nu este nevoie
+- scopul principal este clonarea definițiilor și a relațiilor/configurațiilor, păstrând obiectele WP existente
+- trebuie păstrate:
+  - posts din CPT
+  - term relationships
+  - post meta
+  - featured images
+  - author/date/status
+- pluginul trebuie să opereze pe infrastructura standard WP acolo unde este posibil
+
+F. Dezactivarea JetEngine
+- oferă o checklist page:
+  - ce a fost migrat
+  - ce mai depinde de JetEngine
+  - ce lipsuri există
+- înainte de dezactivare:
+  - rulează validări
+  - marchează readiness status
+- după dezactivare:
+  - JetSync înregistrează tot ce este necesar
+  - adminul nu pierde accesul la editarea datelor
+
+G. Listing builder
+- MVP:
+  - creează listing pentru un CPT
+  - definește query source
+  - alege câmpurile afișate
+  - setează template HTML sigur/sanitizat
+  - expune shortcode [jetsync_listing id="..."]
+  - opțional block Gutenberg de bază
+- listing-ul trebuie să funcționeze fără JetEngine
+
+H. Settings / Tools
+- general settings
+- import/export JSON
+- migration logs
+- data validator
+- repair indexes
+- relation rebuild
+- cache clear
+- developer mode
+
+I. Compatibilitate și extensibilitate
+- WordPress modern
+- PHP 8.1+
+- fallback elegant pentru lipsa JetEngine
+- filtre și acțiuni pentru extensii viitoare
+- arhitectură astfel încât ulterior să poată exista un addon Pro
+
+LIVRABILE
+Vreau să construiești pluginul în ETAPE, nu dintr-o singură bucată.
+
+ETAPA 1
+- definește arhitectura finală
+- propune structura de directoare
+- creează bootstrap-ul pluginului
+- creează autoloader-ul
+- creează clasele Core de bază
+- creează installer / activator / deactivator
+- creează admin menu placeholder
+- creează o pagină dashboard JetSync
+
+ETAPA 2
+- implementează registry-ul intern pentru CPT-uri și taxonomii
+- creează schema de stocare
+- CRUD intern pentru definitions
+- runtime registration pentru CPT și taxonomy
+- UI minim pentru listare definitions
+
+ETAPA 3
+- implementează compatibility detector pentru JetEngine
+- creează import adapters pentru CPT și taxonomy
+- creează wizard de scan/import
+- adaugă dry-run + report
+
+ETAPA 4
+- implementează fields/meta boxes abstraction layer
+- import JetEngine fields
+- runtime save/load pentru meta
+- UI admin pentru definirea și editarea field groups
+
+ETAPA 5
+- implementează relations engine
+- definește schema DB pentru relations
+- import din JetEngine relations
+- UI pentru relation definitions
+- APIs pentru relation CRUD
+- integrity checker
+
+ETAPA 6
+- implementează migration center complet
+- status pages
+- validate/repair/resync
+- readiness check pentru dezactivarea JetEngine
+- rapoarte și logs
+
+ETAPA 7
+- implementează listings engine MVP
+- admin builder minim
+- shortcode
+- query abstraction
+- render layer
+- block Gutenberg minimal dacă este fezabil
+
+ETAPA 8
+- hardening și polish
+- nonce/capability/security audit
+- uninstall strategy
+- hooks/filters docs
+- sample data
+- extensibility notes
+- TODO list pentru versiunea 2
+
+RESTRICȚII IMPORTANTE
+- Nu presupune că JetEngine stochează totul într-un singur loc; creează adaptoare și detectare flexibilă
+- Nu rupe site-ul dacă JetEngine este activ simultan
+- Evită dublă înregistrare conflictuală a CPT-urilor/taxonomiilor
+- Dacă există risc de conflict de slug, raportează explicit și oferă strategie
+- Păstrează compatibilitatea cu datele WordPress native
+- Orice operație distructivă trebuie confirmată explicit
+- Nu șterge automat nimic din JetEngine
+
+ABORDARE DE IMPLEMENTARE
+Pentru fiecare etapă:
+1. explică obiectivul și riscurile
+2. descrie designul soluției
+3. afișează structura fișierelor
+4. generează codul complet
+5. explică unde se conectează în etapele următoare
+6. include note de testare manuală
