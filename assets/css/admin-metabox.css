@@ -1,0 +1,368 @@
+/* JetSync Model Metabox – replicates model.jpeg layout, light WP-core style */
+.jetsync-meta-box-container.jetsync-model-layout {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px 16px;
+  padding: 12px 12px 8px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.jetsync-meta-field {
+  box-sizing: border-box;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.jetsync-col-3 { grid-column: span 3; }
+.jetsync-col-4 { grid-column: span 4; }
+.jetsync-col-5 { grid-column: span 5; }
+.jetsync-col-6 { grid-column: span 6; }
+.jetsync-col-12 { grid-column: span 12; }
+
+@media (max-width: 782px) {
+  .jetsync-col-3, .jetsync-col-4, .jetsync-col-5, .jetsync-col-6 { grid-column: span 12; }
+}
+
+/* Header: label + tiny Name hint like "Name: cover-model" in model */
+.jetsync-field-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.jetsync-field-label {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.3;
+  color: #23282d;
+}
+.jetsync-field-name-hint {
+  font-size: 10px;
+  line-height: 1.2;
+  color: #8c8f94;
+  font-family: Consolas, Monaco, monospace;
+}
+.jetsync-field-desc {
+  margin-top: 4px;
+  color: #646970;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Inputs */
+.jetsync-meta-field input[type="text"],
+.jetsync-meta-field input[type="url"],
+.jetsync-meta-field input[type="date"],
+.jetsync-meta-field textarea,
+.jetsync-meta-field .large-text,
+.jetsync-meta-field .regular-text {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #8c8f94;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  background: #fff;
+  color: #2c3338;
+  box-sizing: border-box;
+}
+.jetsync-meta-field input:focus,
+.jetsync-meta-field textarea:focus,
+.jetsync-meta-field select:focus {
+  border-color: #2271b1;
+  box-shadow: 0 0 0 1px #2271b1;
+  outline: none;
+}
+.jetsync-select {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Checkbox block – matches model: Select all / Deselect all on top, vertical list */
+.jetsync-checkbox-field .jetsync-checkbox-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.jetsync-checkbox-field .jetsync-checkbox-actions .button {
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 2px 8px;
+  min-height: 24px;
+}
+.jetsync-checkbox-field .jetsync-checkbox-actions .jetsync-select-all {
+  color: #2271b1;
+  border-color: #2271b1;
+}
+.jetsync-checkbox-field .jetsync-checkbox-actions .jetsync-deselect-all {
+  color: #b32d2e;
+  border-color: #d63638;
+}
+.jetsync-checkbox-options {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  background: #fbfbfc;
+  border-radius: 3px;
+}
+.jetsync-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #3c434a;
+  cursor: pointer;
+}
+.jetsync-checkbox-label input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Radio */
+.jetsync-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.jetsync-radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* Switcher – toggle like model green switch */
+.jetsync-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.jetsync-switcher input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.jetsync-switcher-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 12px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.jetsync-switcher-slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+.jetsync-switcher input:checked + .jetsync-switcher-slider {
+  background: #10b981;
+}
+.jetsync-switcher input:checked + .jetsync-switcher-slider::before {
+  transform: translateX(20px);
+}
+.jetsync-switcher-labels {
+  display: inline-flex;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.jetsync-switcher-off { color: #64748b; }
+.jetsync-switcher-on { color: #059669; }
+.jetsync-switcher input:checked ~ .jetsync-switcher-labels .jetsync-switcher-off { opacity: 0.5; }
+.jetsync-switcher input:not(:checked) ~ .jetsync-switcher-labels .jetsync-switcher-on { opacity: 0.5; }
+
+/* Media single */
+.jetsync-media-single {
+  align-items: center;
+}
+.jetsync-media-single .jetsync-media-preview {
+  width: 120px;
+  height: 140px;
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f6f7f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.jetsync-media-single .jetsync-media-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.jetsync-media-placeholder {
+  color: #a7aaad;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.jetsync-media-placeholder .dashicons {
+  font-size: 32px;
+  width: 32px;
+  height: 32px;
+}
+.jetsync-media-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.jetsync-btn-dark {
+  background: #50575e !important;
+  border-color: #50575e !important;
+  color: #fff !important;
+}
+.jetsync-btn-dark:hover {
+  background: #3c434a !important;
+  border-color: #3c434a !important;
+  color: #fff !important;
+}
+
+/* Gallery */
+.jetsync-media-gallery .jetsync-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+  min-height: 60px;
+}
+@media (max-width: 1100px) { .jetsync-media-gallery .jetsync-gallery-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 782px)  { .jetsync-media-gallery .jetsync-gallery-grid { grid-template-columns: repeat(3, 1fr); } }
+.jetsync-gallery-item {
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  aspect-ratio: 1;
+}
+.jetsync-gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.jetsync-gallery-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #8c8f94;
+  padding: 18px;
+  border: 1px dashed #dcdcde;
+  border-radius: 4px;
+  background: #fbfbfc;
+}
+
+/* URL input */
+.jetsync-url-input::placeholder { color: #a7aaad; }
+
+/* Relations metabox – table like model.jpeg */
+.jetsync-rel-box {
+  background: #fff;
+}
+.jetsync-rel-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.jetsync-rel-actions .button {
+  font-size: 13px;
+  padding: 2px 10px;
+  min-height: 28px;
+}
+.jetsync-rel-table {
+  width: 100%;
+  border: 1px solid #c3c4c7 !important;
+  border-collapse: collapse;
+  background: #fff;
+}
+.jetsync-rel-table th {
+  background: #f6f7f7;
+  font-weight: 600;
+  font-size: 13px;
+  color: #23282d;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #c3c4c7;
+}
+.jetsync-rel-table td {
+  padding: 8px 10px;
+  font-size: 13px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+.jetsync-rel-table tr:last-child td { border-bottom: none; }
+.jetsync-rel-title {
+  font-weight: 400;
+  color: #3c434a;
+  word-break: break-word;
+}
+.jetsync-rel-row-actions {
+  white-space: nowrap;
+}
+.jetsync-rel-row-actions .button {
+  font-size: 12px;
+  padding: 0 6px;
+  min-height: 26px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.jetsync-rel-row-actions .jetsync-btn-edit,
+.jetsync-rel-row-actions .jetsync-btn-view {
+  color: #2271b1;
+  border-color: #2271b1;
+}
+.jetsync-rel-row-actions .jetsync-btn-disconnect {
+  color: #b32d2e;
+  border-color: #d63638;
+  background: #fff;
+}
+.jetsync-rel-row-actions .jetsync-btn-disconnect:hover {
+  background: #fef2f2;
+  border-color: #b32d2e;
+  color: #8a0a0a;
+}
+.jetsync-rel-connect-panel {
+  border-radius: 6px;
+}
+.jetsync-rel-connect-panel .jetsync-rel-connect-select {
+  border-color: #8c8f94;
+}
+.jetsync-rel-search {
+  width: 100%;
+}
+
+/* WP Postbox overrides to remove extra padding inside our metabox */
+.postbox .inside .jetsync-meta-box-container {
+  margin: -6px -12px -12px;
+}
+@media (max-width: 782px) {
+  .postbox .inside .jetsync-meta-box-container {
+    margin: -6px -12px -12px;
+  }
+}

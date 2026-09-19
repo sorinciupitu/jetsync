@@ -206,5 +206,15 @@ class JetSync {
             }
             \update_option( 'jetsync_installed_version', JETSYNC_VERSION );
         }
+
+        // Self-healing for model field types (checkbox/switcher) introduced in 1.4.x — runs once.
+        $repaired_flag = \get_option( 'jetsync_model_fields_repaired_v2', false );
+        if ( ! $repaired_flag ) {
+            $mb_registry = $this->get( 'metabox_registry' );
+            if ( $mb_registry instanceof \JetSync\Registry\MetaBoxRegistry ) {
+                $mb_registry->repair_known_model_fields();
+                \update_option( 'jetsync_model_fields_repaired_v2', true );
+            }
+        }
     }
 }

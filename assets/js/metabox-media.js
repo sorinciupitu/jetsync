@@ -1,27 +1,44 @@
 jQuery(function ($) {
+  function isGalleryWrap($wrap) {
+    return $wrap.hasClass('jetsync-media-gallery') || $wrap.find('.jetsync-gallery-grid').length > 0;
+  }
+
   function renderGalleryPreview($wrap, attachments) {
-    var $preview = $wrap.find(".jetsync-media-preview");
-    $preview.empty();
+    var $grid = $wrap.find(".jetsync-gallery-grid");
+    var $hiddenPreview = $wrap.find(".jetsync-media-preview");
+    var $container = $grid.length ? $grid : $hiddenPreview;
+    if (!$container.length) $container = $wrap.find(".jetsync-media-preview");
+    $container.empty();
+    if (!attachments.length) {
+      $container.append($('<div class="jetsync-gallery-empty">No images selected.</div>'));
+      return;
+    }
     attachments.forEach(function (att) {
       var url =
         (att.sizes && att.sizes.thumbnail && att.sizes.thumbnail.url) ||
         att.url ||
         "";
       if (!url) return;
-      $preview.append(
-        $("<img />", {
-          src: url,
-          css: {
-            width: "72px",
-            height: "72px",
-            objectFit: "cover",
-            marginRight: "8px",
-            marginBottom: "8px",
-            borderRadius: "6px",
-            border: "1px solid #e5e7eb",
-          },
-        })
-      );
+      if ($grid.length) {
+        var $item = $('<div class="jetsync-gallery-item"></div>');
+        $item.append($('<img />', { src: url }));
+        $container.append($item);
+      } else {
+        $container.append(
+          $("<img />", {
+            src: url,
+            css: {
+              width: "72px",
+              height: "72px",
+              objectFit: "cover",
+              marginRight: "8px",
+              marginBottom: "8px",
+              borderRadius: "6px",
+              border: "1px solid #e5e7eb",
+            },
+          })
+        );
+      }
     });
   }
 
@@ -30,24 +47,17 @@ jQuery(function ($) {
       (attachment.sizes &&
         attachment.sizes.thumbnail &&
         attachment.sizes.thumbnail.url) ||
+      (attachment.sizes && attachment.sizes.medium && attachment.sizes.medium.url) ||
       attachment.url ||
       "";
-    $wrap.find(".jetsync-media-preview").empty();
-    if (!url) return;
-    $wrap
-      .find(".jetsync-media-preview")
-      .append(
-        $("<img />", {
-          src: url,
-          css: {
-            width: "120px",
-            height: "120px",
-            objectFit: "cover",
-            borderRadius: "8px",
-            border: "1px solid #e5e7eb",
-          },
-        })
-      );
+    var $preview = $wrap.find(".jetsync-media-preview");
+    $preview.empty().removeClass('has-image');
+    if (!url) {
+      $preview.append('<div class="jetsync-media-placeholder"><span class="dashicons dashicons-format-image"></span></div>');
+      return;
+    }
+    $preview.addClass('has-image');
+    $preview.append($("<img />", { src: url, alt: "" }));
   }
 
   $(document).on("click", ".jetsync-media-select", function (e) {
@@ -94,7 +104,13 @@ jQuery(function ($) {
     e.preventDefault();
     var $wrap = $(this).closest(".jetsync-media-field");
     $wrap.find("input.jetsync-media-value").val("");
-    $wrap.find(".jetsync-media-preview").empty();
+    var $preview = $wrap.find(".jetsync-media-preview");
+    var $grid = $wrap.find(".jetsync-gallery-grid");
+    if ($grid.length) {
+      $grid.empty().append('<div class="jetsync-gallery-empty">No images selected.</div>');
+    } else {
+      $preview.empty().removeClass('has-image').append('<div class="jetsync-media-placeholder"><span class="dashicons dashicons-format-image"></span></div>');
+    }
   });
 });
 

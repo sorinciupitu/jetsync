@@ -42,6 +42,7 @@ class MetaBoxManager {
             return;
         }
 
+        $has_box   = false;
         $needs_media = false;
         $meta_boxes = $this->registry->get_all();
         foreach ( $meta_boxes as $metabox ) {
@@ -55,23 +56,40 @@ class MetaBoxManager {
             if ( ! empty( $types ) && ! in_array( $screen->post_type, $types, true ) ) {
                 continue;
             }
+            $has_box = true;
             foreach ( $metabox->get_fields() as $field ) {
                 $t = $field->get_type();
                 if ( 'media' === $t || 'gallery' === $t ) {
                     $needs_media = true;
-                    break 2;
                 }
             }
         }
 
-        if ( ! $needs_media ) {
+        if ( ! $has_box ) {
             return;
         }
 
-        \wp_enqueue_media();
+        \wp_enqueue_style(
+            'jet-sync-metabox',
+            JETSYNC_URL . 'assets/css/admin-metabox.css',
+            [],
+            JETSYNC_VERSION
+        );
+
+        if ( $needs_media ) {
+            \wp_enqueue_media();
+            \wp_enqueue_script(
+                'jet-sync-metabox-media',
+                JETSYNC_URL . 'assets/js/metabox-media.js',
+                [ 'jquery' ],
+                JETSYNC_VERSION,
+                true
+            );
+        }
+
         \wp_enqueue_script(
-            'jet-sync-metabox-media',
-            JETSYNC_URL . 'assets/js/metabox-media.js',
+            'jet-sync-metabox-ui',
+            JETSYNC_URL . 'assets/js/metabox-ui.js',
             [ 'jquery' ],
             JETSYNC_VERSION,
             true
@@ -143,6 +161,9 @@ class MetaBoxManager {
     private function is_primary_image_field( string $field_name ) : bool {
         $field_name = strtolower( $field_name );
         return str_contains( $field_name, 'cover_image' )
+            || str_contains( $field_name, 'cover-model' )
+            || str_contains( $field_name, 'cover_model' )
+            || str_contains( $field_name, 'cover' )
             || str_contains( $field_name, 'featured_image' )
             || str_contains( $field_name, 'thumbnail' )
             || 'image' === $field_name;
@@ -313,6 +334,49 @@ class MetaBoxManager {
         );
     }
 
+    private function get_field_grid_class( string $field_name, string $field_type ) : string {
+        $k = strtolower( $field_name );
+        // Known model fields mapping to match screenshot model.jpeg
+        if ( str_contains( $k, 'model-name' ) || $k === 'model_name' ) {
+            return 'jetsync-col-4';
+        }
+        if ( str_contains( $k, 'model-section' ) || str_contains( $k, 'model_section' ) ) {
+            return 'jetsync-col-5';
+        }
+        if ( $k === 'updated' || $k === 'updated?' ) {
+            return 'jetsync-col-3';
+        }
+        if ( str_contains( $k, 'cover' ) ) {
+            return 'jetsync-col-12 jetsync-media-row';
+        }
+        if ( str_contains( $k, 'height' ) || str_contains( $k, 'bust' ) || str_contains( $k, 'waist' ) || str_contains( $k, 'hips' ) ) {
+            return 'jetsync-col-3';
+        }
+        if ( str_contains( $k, 'shoes' ) || str_contains( $k, 'shoe' ) || str_contains( $k, 'hair' ) || str_contains( $k, 'eyes' ) || str_contains( $k, 'eye' ) ) {
+            return 'jetsync-col-4';
+        }
+        if ( 'gallery' === $field_type || str_contains( $k, 'gallery' ) ) {
+            return 'jetsync-col-12';
+        }
+        if ( 'media' === $field_type ) {
+            return 'jetsync-col-12';
+        }
+        if ( str_contains( $k, 'instagram' ) || str_contains( $k, 'profil' ) || str_contains( $k, 'uri' ) || str_contains( $k, 'url' ) ) {
+            return 'jetsync-col-12';
+        }
+        if ( 'checkbox' === $field_type ) {
+            return 'jetsync-col-6';
+        }
+        if ( 'switcher' === $field_type ) {
+            return 'jetsync-col-3';
+        }
+        if ( 'textarea' === $field_type || 'wysiwyg' === $field_type ) {
+            return 'jetsync-col-12';
+        }
+        // default: fallback to full width to preserve compatibility for generic metaboxes
+        return 'jetsync-col-12';
+    }
+
     /**
      * Rendering callback. Renders custom form input controls.
      *
@@ -326,36 +390,58 @@ class MetaBoxManager {
             return;
         }
 
-        // Output nonce for security verification
         $nonce_name = 'jetsync_metabox_nonce_' . $metabox->get_id();
         $nonce_action = 'jetsync_save_metabox_' . $metabox->get_id();
         \wp_nonce_field( $nonce_action, $nonce_name );
 
         $fields = $metabox->get_fields();
 
-        echo '<div class="jetsync-meta-box-container">';
+        echo '<div class="jetsync-meta-box-container jetsync-model-layout">';
 
         foreach ( $fields as $field ) {
-            $field_name = $field->get_name();
+            $field_name  = $field->get_name();
             $field_title = $field->get_title();
-            $field_type = $field->get_type();
-            $field_desc = $field->get_description();
-            $default = $field->get_default_value();
+            $field_type  = $field->get_type();
+            $field_desc  = $field->get_description();
+            $default     = $field->get_default_value();
 
-            // Fetch stored meta value (fallback to default)
             $stored_val = \get_post_meta( $post->ID, $field_name, true );
-            $value = ( $stored_val !== '' ) ? $stored_val : $default;
+            // Fix legacy broken checkbox that was stored as string "true, false" instead of array
+            if ( 'checkbox' === $field_type && is_string( $stored_val ) && str_contains( $stored_val, 'true' ) && empty( $field->get_options() ) === false ) {
+                // Try to detect broken stringified booleans -> treat as empty and let user reselect
+                if ( preg_match( '/\btrue\b|\bfalse\b/', $stored_val ) && ! str_contains( $stored_val, 'Special Booking' ) ) {
+                    $stored_val = [];
+                }
+            }
+            $value = ( $stored_val !== '' && $stored_val !== [] ) ? $stored_val : $default;
+            // For checkbox, ensure array; if stored as comma string of valid option values, convert to array
+            if ( 'checkbox' === $field_type && is_string( $value ) && '' !== $value ) {
+                // Only convert if it looks like option values list, not legacy booleans
+                if ( ! str_contains( $value, 'true' ) || str_contains( $value, 'Special' ) ) {
+                    $value = array_map( 'trim', explode( ',', $value ) );
+                } else {
+                    $value = [];
+                }
+            }
 
-            echo '<div class="jetsync-meta-row" style="margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid #f0f0f0;">';
-            echo '<label style="display:block; font-weight:600; margin-bottom:0.5rem; color:#2c3338;" for="' . \esc_attr( $field_name ) . '">' . \esc_html( $field_title ) . '</label>';
+            $grid_class = $this->get_field_grid_class( $field_name, $field_type );
 
+            echo '<div class="jetsync-meta-field ' . \esc_attr( $grid_class ) . ' jetsync-type-' . \esc_attr( $field_type ) . '">';
+
+            // Label + tiny Name hint like model.jpeg shows "Name: cover-model"
+            echo '<div class="jetsync-field-header">';
+            echo '<label class="jetsync-field-label" for="' . \esc_attr( $field_name ) . '">' . \esc_html( $field_title ) . '</label>';
+            echo '<span class="jetsync-field-name-hint">Name: ' . \esc_html( $field_name ) . '</span>';
+            echo '</div>';
+
+            // Field input
             switch ( $field_type ) {
                 case 'textarea':
-                    echo '<textarea id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" class="large-text" rows="4">' . \esc_textarea( $this->stringify_field_value( $value ) ) . '</textarea>';
+                    echo '<textarea id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" class="large-text" rows="3">' . \esc_textarea( $this->stringify_field_value( $value ) ) . '</textarea>';
                     break;
 
                 case 'select':
-                    echo '<select id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" class="postform">';
+                    echo '<select id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" class="jetsync-select">';
                     foreach ( $field->get_options() as $opt ) {
                         $selected = ( (string) $value === (string) $opt['value'] ) ? ' selected="selected"' : '';
                         echo '<option value="' . \esc_attr( $opt['value'] ) . '"' . $selected . '>' . \esc_html( $opt['label'] ) . '</option>';
@@ -364,28 +450,81 @@ class MetaBoxManager {
                     break;
 
                 case 'radio':
+                    echo '<div class="jetsync-radio-group">';
                     foreach ( $field->get_options() as $opt ) {
                         $checked = ( (string) $value === (string) $opt['value'] ) ? ' checked="checked"' : '';
-                        echo '<label style="margin-right:1.5rem; font-weight:500;"><input type="radio" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( $opt['value'] ) . '"' . $checked . '> ' . \esc_html( $opt['label'] ) . '</label>';
+                        echo '<label class="jetsync-radio-label"><input type="radio" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( $opt['value'] ) . '"' . $checked . '> ' . \esc_html( $opt['label'] ) . '</label>';
                     }
+                    echo '</div>';
                     break;
 
                 case 'checkbox':
-                    // Checkboxes values are typically stored as arrays
-                    $checkbox_values = is_array( $value ) ? $value : ( ( ! empty( $value ) ) ? (array) $value : [] );
-                    foreach ( $field->get_options() as $opt ) {
-                        $checked = in_array( (string) $opt['value'], array_map( 'strval', $checkbox_values ), true ) ? ' checked="checked"' : '';
-                        echo '<label style="display:block; margin-bottom:0.25rem; font-weight:500;"><input type="checkbox" name="' . \esc_attr( $field_name ) . '[]" value="' . \esc_attr( $opt['value'] ) . '"' . $checked . '> ' . \esc_html( $opt['label'] ) . '</label>';
+                    // Normalize legacy storage forms: associative true/false, indexed booleans, etc.
+                    if ( is_array( $value ) && ! empty( $value ) ) {
+                        $keys = array_keys( $value );
+                        $is_assoc = $keys !== range( 0, count( $value ) - 1 );
+                        if ( $is_assoc ) {
+                            $normalized = [];
+                            foreach ( $value as $k => $v ) {
+                                $vs = strtolower( trim( (string) $v ) );
+                                if ( in_array( $vs, [ 'true', '1', 'yes', 'on' ], true ) ) {
+                                    $normalized[] = (string) $k;
+                                }
+                            }
+                            $value = $normalized;
+                        } elseif ( count( $value ) === count( $field->get_options() ) && count( array_filter( $value, static fn( $v ) => in_array( strtolower( trim( (string) $v ) ), [ 'true', 'false', '1', '0' ], true ) ) ) === count( $value ) ) {
+                            $normalized = [];
+                            $opts = $field->get_options();
+                            foreach ( $value as $idx => $boolStr ) {
+                                if ( in_array( strtolower( trim( (string) $boolStr ) ), [ 'true', '1', 'yes', 'on' ], true ) && isset( $opts[ $idx ]['value'] ) ) {
+                                    $normalized[] = (string) $opts[ $idx ]['value'];
+                                }
+                            }
+                            $value = $normalized;
+                        }
                     }
+                    $checkbox_values = is_array( $value ) ? $value : ( ! empty( $value ) ? (array) $value : [] );
+                    // Normalize to strings for comparison
+                    $checkbox_values_str = array_map( 'strval', $checkbox_values );
+                    // Filter out legacy boolean strings
+                    $checkbox_values_str = array_filter( $checkbox_values_str, static function( $v ) {
+                        return ! in_array( strtolower( trim( $v ) ), [ 'true', 'false', '1', '0' ], true ) || in_array( $v, [ 'Special Booking', 'Main board', 'Development', 'Commercial', 'Runway', 'General' ], true );
+                    } );
+                    // If values are like ["true","false"] leftover, treat as empty
+                    if ( count( $checkbox_values_str ) > 0 && count( array_filter( $checkbox_values_str, fn($v) => in_array($v, ['Special Booking','Main board','Development','Commercial','Runway','General'], true) ) ) === 0 && count($checkbox_values_str) <= 6 ) {
+                        // Check if it's all booleans => clear
+                        $all_bool = true;
+                        foreach ( $checkbox_values_str as $cv ) {
+                            if ( ! in_array( strtolower($cv), ['true','false'], true ) ) { $all_bool = false; break; }
+                        }
+                        if ( $all_bool ) { $checkbox_values_str = []; }
+                    }
+
+                    echo '<div class="jetsync-checkbox-field" data-field="' . \esc_attr( $field_name ) . '">';
+                    // Select all / Deselect all like model
+                    echo '<div class="jetsync-checkbox-actions">';
+                    echo '<button type="button" class="button button-small jetsync-select-all">Select all</button>';
+                    echo '<button type="button" class="button button-small jetsync-deselect-all">Deselect all</button>';
+                    echo '</div>';
+                    echo '<div class="jetsync-checkbox-options">';
+                    foreach ( $field->get_options() as $opt ) {
+                        $checked = in_array( (string) $opt['value'], $checkbox_values_str, true ) ? ' checked="checked"' : '';
+                        echo '<label class="jetsync-checkbox-label"><input type="checkbox" name="' . \esc_attr( $field_name ) . '[]" value="' . \esc_attr( $opt['value'] ) . '"' . $checked . '> <span>' . \esc_html( $opt['label'] ) . '</span></label>';
+                    }
+                    if ( empty( $field->get_options() ) ) {
+                        echo '<p class="description">No options configured.</p>';
+                    }
+                    echo '</div>';
+                    echo '</div>';
                     break;
 
                 case 'switcher':
                     $switcher_labels = $this->get_switcher_labels( $field );
-                    $is_checked = ( $value === 'true' || $value === '1' || $value === true || $value === 1 ) ? ' checked="checked"' : '';
-                    echo '<label class="jetsync-switch-container" style="display:inline-flex; align-items:center; gap:0.75rem; cursor:pointer; font-weight:600;">';
-                    echo '<span style="color:#64748b;">' . \esc_html( $switcher_labels['off'] ) . '</span>';
-                    echo '<input type="checkbox" name="' . \esc_attr( $field_name ) . '" value="1"' . $is_checked . ' style="transform:scale(1.1);">';
-                    echo '<span style="color:#16a34a;">' . \esc_html( $switcher_labels['on'] ) . '</span>';
+                    $is_checked = ( $value === 'true' || $value === '1' || $value === true || $value === 1 || $value === 'on' ) ? ' checked="checked"' : '';
+                    echo '<label class="jetsync-switcher">';
+                    echo '<input type="checkbox" name="' . \esc_attr( $field_name ) . '" value="1"' . $is_checked . '>';
+                    echo '<span class="jetsync-switcher-slider"></span>';
+                    echo '<span class="jetsync-switcher-labels"><span class="jetsync-switcher-off">' . \esc_html( $switcher_labels['off'] ) . '</span><span class="jetsync-switcher-on">' . \esc_html( $switcher_labels['on'] ) . '</span></span>';
                     echo '</label>';
                     break;
 
@@ -400,17 +539,24 @@ class MetaBoxManager {
 
                 case 'media':
                     $attachment_id = \absint( is_array( $value ) ? 0 : $value );
-                    $thumb = $attachment_id > 0 ? \wp_get_attachment_image_url( $attachment_id, 'thumbnail' ) : '';
-                    echo '<div class="jetsync-media-field">';
-                    echo '<input class="jetsync-media-value" type="hidden" id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( (string) $attachment_id ) . '">';
-                    echo '<div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.75rem;">';
-                    echo '<button type="button" class="button jetsync-media-select" data-multiple="0">Choose media</button>';
-                    echo '<button type="button" class="button jetsync-media-clear">Clear</button>';
-                    echo '</div>';
-                    echo '<div class="jetsync-media-preview">';
-                    if ( is_string( $thumb ) && '' !== $thumb ) {
-                        echo '<img src="' . \esc_url( $thumb ) . '" style="width:120px; height:120px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb;" />';
+                    // Also handle legacy string "123" or url
+                    if ( 0 === $attachment_id && is_string( $value ) && '' !== trim( $value ) ) {
+                        $attachment_id = $this->extract_attachment_id( $value );
                     }
+                    $thumb = $attachment_id > 0 ? \wp_get_attachment_image_url( $attachment_id, 'thumbnail' ) : '';
+                    $full = $attachment_id > 0 ? \wp_get_attachment_image_url( $attachment_id, 'medium' ) : '';
+                    echo '<div class="jetsync-media-field jetsync-media-single">';
+                    echo '<input class="jetsync-media-value" type="hidden" id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( (string) $attachment_id ) . '">';
+                    echo '<div class="jetsync-media-preview' . ( '' !== $thumb ? ' has-image' : '' ) . '">';
+                    if ( is_string( $thumb ) && '' !== $thumb ) {
+                        echo '<img src="' . \esc_url( $full ?: $thumb ) . '" alt="" />';
+                    } else {
+                        echo '<div class="jetsync-media-placeholder"><span class="dashicons dashicons-format-image"></span></div>';
+                    }
+                    echo '</div>';
+                    echo '<div class="jetsync-media-actions">';
+                    echo '<button type="button" class="button jetsync-media-select jetsync-btn-dark" data-multiple="0">CHOOSE MEDIA</button>';
+                    echo '<button type="button" class="button jetsync-media-clear">Clear</button>';
                     echo '</div>';
                     echo '</div>';
                     break;
@@ -422,24 +568,28 @@ class MetaBoxManager {
                     } else {
                         $raw = trim( (string) $value );
                         if ( '' !== $raw ) {
-                            $ids = array_values( array_filter( array_map( '\absint', explode( ',', $raw ) ) ) );
+                            // handle both "1,2,3" and array stored as serialized?
+                            $ids = array_values( array_filter( array_map( '\absint', preg_split( '/\s*,\s*/', $raw ) ?: [] ) ) );
                         }
                     }
                     $ids = array_slice( $ids, 0, 80 );
                     $raw_value = implode( ',', $ids );
-                    echo '<div class="jetsync-media-field">';
+                    echo '<div class="jetsync-media-field jetsync-media-gallery">';
                     echo '<input class="jetsync-media-value" type="hidden" id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( $raw_value ) . '">';
-                    echo '<div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.75rem;">';
-                    echo '<button type="button" class="button jetsync-media-select" data-multiple="1">Choose images</button>';
-                    echo '<button type="button" class="button jetsync-media-clear">Clear</button>';
-                    echo '</div>';
-                    echo '<div class="jetsync-media-preview" style="display:flex; flex-wrap:wrap;">';
+                    echo '<div class="jetsync-gallery-grid">';
                     foreach ( $ids as $attachment_id ) {
                         $thumb = \wp_get_attachment_image_url( (int) $attachment_id, 'thumbnail' );
                         if ( is_string( $thumb ) && '' !== $thumb ) {
-                            echo '<img src="' . \esc_url( $thumb ) . '" style="width:72px; height:72px; object-fit:cover; margin-right:8px; margin-bottom:8px; border-radius:6px; border:1px solid #e5e7eb;" />';
+                            echo '<div class="jetsync-gallery-item"><img src="' . \esc_url( $thumb ) . '" alt="" /></div>';
                         }
                     }
+                    if ( empty( $ids ) ) {
+                        echo '<div class="jetsync-gallery-empty">No images selected.</div>';
+                    }
+                    echo '</div>';
+                    echo '<div class="jetsync-media-actions">';
+                    echo '<button type="button" class="button jetsync-media-select jetsync-btn-dark" data-multiple="1">CHOOSE MEDIA</button>';
+                    echo '<button type="button" class="button jetsync-media-clear">Clear</button>';
                     echo '</div>';
                     echo '</div>';
                     break;
@@ -449,7 +599,7 @@ class MetaBoxManager {
                     break;
 
                 case 'url':
-                    echo '<input type="url" id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( $this->stringify_field_value( $value ) ) . '" class="large-text">';
+                    echo '<input type="url" id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" value="' . \esc_attr( $this->stringify_field_value( $value ) ) . '" class="large-text jetsync-url-input" placeholder="https://">';
                     break;
 
                 case 'text':
@@ -459,12 +609,14 @@ class MetaBoxManager {
             }
 
             if ( ! empty( $field_desc ) ) {
-                echo '<p class="description" style="margin-top:0.35rem; color:#64748b; font-style:italic;">' . \esc_html( $field_desc ) . '</p>';
+                echo '<p class="description jetsync-field-desc">' . \esc_html( $field_desc ) . '</p>';
             }
             echo '</div>';
         }
 
         echo '</div>';
+        // clearfix for WP postbox
+        echo '<div style="clear:both;"></div>';
     }
 
     /**

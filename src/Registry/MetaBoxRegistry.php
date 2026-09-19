@@ -71,6 +71,19 @@ class MetaBoxRegistry extends BaseRegistry {
                     $type = $this->infer_meta_field_type( $sample_post_ids, $field_name );
                 }
 
+                // Ensure known model fields have correct options even after type fix
+                $opts = $field->get_options();
+                $expected_opts = $this->get_expected_options_for_key( strtolower( $field_name ) );
+                if ( null !== $expected_opts && empty( $opts ) ) {
+                    $opts = $expected_opts;
+                }
+                if ( 'checkbox' === $type && empty( $opts ) && str_contains( strtolower( $field_name ), 'model-section' ) ) {
+                    $opts = $this->get_expected_options_for_key( 'model-section' ) ?? [];
+                }
+                if ( 'switcher' === $type && empty( $opts ) ) {
+                    $opts = [ [ 'value' => '0', 'label' => 'Nu' ], [ 'value' => '1', 'label' => 'Da' ] ];
+                }
+
                 $fields[] = new MetaFieldDefinition(
                     name: $field_name,
                     title: $field->get_title(),
@@ -78,7 +91,7 @@ class MetaBoxRegistry extends BaseRegistry {
                     description: $field->get_description(),
                     required: $field->is_required(),
                     default_value: $field->get_default_value(),
-                    options: $field->get_options()
+                    options: $opts
                 );
             }
 
@@ -103,12 +116,131 @@ class MetaBoxRegistry extends BaseRegistry {
         }
     }
 
+     public function repair_known_model_fields() : bool {
+        $changed = false;
+        foreach ( $this->definitions as $slug => $definition ) {
+            if ( ! $definition instanceof MetaBoxDefinition ) {
+                continue;
+            }
+            $fields = $definition->get_fields();
+            $new_fields = [];
+            $local_changed = false;
+            foreach ( $fields as $field ) {
+                if ( ! $field instanceof MetaFieldDefinition ) {
+                    continue;
+                }
+                $name = strtolower( $field->get_name() );
+                $type = $field->get_type();
+                $options = $field->get_options();
+                $expected_type = $this->get_expected_type_for_key( $name );
+                $expected_options = $this->get_expected_options_for_key( $name );
+
+                if ( null !== $expected_type && $type !== $expected_type ) {
+                    $type = $expected_type;
+                    $local_changed = true;
+                }
+                if ( null !== $expected_options && empty( $options ) ) {
+                    $options = $expected_options;
+                    $local_changed = true;
+                }
+                // Fix checkbox with empty options but expected to have options
+                if ( 'checkbox' === $type && empty( $options ) && str_contains( $name, 'model-section' ) ) {
+                    $options = $this->get_expected_options_for_key( 'model-section' ) ?? [];
+                    $local_changed = true;
+                }
+                // Fix switcher with empty options
+                if ( 'switcher' === $type && empty( $options ) ) {
+                    $options = [ [ 'value' => '0', 'label' => 'Nu' ], [ 'value' => '1', 'label' => 'Da' ] ];
+                    $local_changed = true;
+                }
+
+                if ( $local_changed ) {
+                    $new_fields[] = new MetaFieldDefinition(
+                        name: $field->get_name(),
+                        title: $field->get_title(),
+                        type: $type,
+                        description: $field->get_description(),
+                        required: $field->is_required(),
+                        default_value: $field->get_default_value(),
+                        options: $options
+                    );
+                } else {
+                    $new_fields[] = $field;
+                }
+            }
+            if ( $local_changed ) {
+                $this->definitions[ $slug ] = new MetaBoxDefinition(
+                    id: $definition->get_id(),
+                    title: $definition->get_title(),
+                    object_types: $definition->get_object_types(),
+                    context: $definition->get_context(),
+                    priority: $definition->get_priority(),
+                    fields: $new_fields,
+                    active: $definition->is_active()
+                );
+                $changed = true;
+            }
+        }
+        if ( $changed ) {
+            $this->save();
+        }
+        return $changed;
+    }
+
+    private function get_expected_type_for_key( string $key ) : ?string {
+        if ( str_contains( $key, 'model-section' ) || str_contains( $key, 'model_section' ) ) {
+            return 'checkbox';
+        }
+        if ( 'updated' === $key || str_contains( $key, 'updated' ) ) {
+            // exact 'updated' or 'updated?' should be switcher
+            if ( $key === 'updated' || $key === 'updated?' || str_ends_with( $key, '-updated' ) || str_ends_with( $key, '_updated' ) ) {
+                return 'switcher';
+            }
+        }
+        if ( str_contains( $key, 'cover' ) && ( str_contains( $key, 'model' ) || str_contains( $key, 'image' ) ) ) {
+            return 'media';
+        }
+        if ( str_contains( $key, 'gallery' ) ) {
+            return 'gallery';
+        }
+        if ( str_contains( $key, 'profil-instagram' ) || str_contains( $key, 'profil_instagram' ) || ( str_contains( $key, 'instagram' ) && ! str_contains( $key, 'section' ) ) ) {
+            return 'url';
+        }
+        if ( str_contains( $key, 'uri-model' ) || str_contains( $key, 'uri_model' ) || $key === 'uri' ) {
+            return 'url';
+        }
+        return null;
+    }
+
+    private function get_expected_options_for_key( string $key ) : ?array {
+        if ( str_contains( $key, 'model-section' ) || str_contains( $key, 'model_section' ) ) {
+            return [
+                [ 'value' => 'Special Booking', 'label' => 'Special Booking' ],
+                [ 'value' => 'Main board', 'label' => 'Main board' ],
+                [ 'value' => 'Development', 'label' => 'Development' ],
+                [ 'value' => 'Commercial', 'label' => 'Commercial' ],
+                [ 'value' => 'Runway', 'label' => 'Runway' ],
+                [ 'value' => 'General', 'label' => 'General' ],
+            ];
+        }
+        if ( str_contains( $key, 'updated' ) ) {
+            return [ [ 'value' => '0', 'label' => 'Nu' ], [ 'value' => '1', 'label' => 'Da' ] ];
+        }
+        return null;
+    }
+
     /**
      * @param array<int> $sample_post_ids
      */
     private function infer_meta_field_type( array $sample_post_ids, string $meta_key ) : string {
         $meta_key = (string) $meta_key;
         $k = strtolower( $meta_key );
+
+        // Known keys have priority over forced text
+        $expected = $this->get_expected_type_for_key( $k );
+        if ( null !== $expected ) {
+            return $expected;
+        }
 
         if ( $this->should_force_text_type( $k ) ) {
             return 'text';
@@ -119,7 +251,7 @@ class MetaBoxRegistry extends BaseRegistry {
         if ( str_contains( $k, 'image' ) || str_contains( $k, 'cover' ) || str_contains( $k, 'thumbnail' ) ) {
             return 'media';
         }
-        if ( str_contains( $k, 'url' ) || str_contains( $k, 'link' ) || str_contains( $k, 'website' ) ) {
+        if ( str_contains( $k, 'url' ) || str_contains( $k, 'link' ) || str_contains( $k, 'website' ) || str_contains( $k, 'instagram' ) ) {
             return 'url';
         }
         if ( str_contains( $k, 'description' ) || str_contains( $k, 'content' ) || str_contains( $k, 'text' ) ) {
@@ -203,14 +335,8 @@ class MetaBoxRegistry extends BaseRegistry {
             'shoe',
             'shoes',
             'height',
-            'hair',
-            'eyes',
-            'eye',
-            'section',
             'size',
             'weight',
-            'profile',
-            'instagram',
         ];
     }
 }
