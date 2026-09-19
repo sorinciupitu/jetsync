@@ -9,6 +9,7 @@ use JetSync\Registry\Model\TaxonomyDefinition;
 use JetSync\Registry\Model\MetaBoxDefinition;
 use JetSync\Registry\Model\RelationDefinition;
 use JetSync\Registry\Model\ListingDefinition;
+use JetSync\Registry\Model\QueryDefinition;
 
 /**
  * Imports a JetSync JSON configuration package back into the registries.
@@ -54,11 +55,13 @@ class ImportConfigManager {
 	public function import( array $data ) : array {
 		$plugin  = JetSync::get_instance();
 		$counts  = [
-			'post_types' => 0,
-			'taxonomies' => 0,
-			'meta_boxes' => 0,
-			'relations'  => 0,
-			'listings'   => 0,
+			'post_types'     => 0,
+			'taxonomies'     => 0,
+			'meta_boxes'     => 0,
+			'relations'      => 0,
+			'listings'       => 0,
+			'queries'        => 0,
+			'relations_data' => 0,
 		];
 
 		// --- CPTs ---
@@ -121,7 +124,55 @@ class ImportConfigManager {
 			}
 		}
 
+		// --- Queries (Elementor Query Builder etc., created after migration) ---
+		/** @var \JetSync\Registry\QueryRegistry|null $query_reg */
+		$query_reg = $plugin->get( 'query_registry' );
+		if ( $query_reg && ! empty( $data['queries'] ) ) {
+			foreach ( (array) $data['queries'] as $row ) {
+				if ( is_array( $row ) && ! empty( $row['id'] ) ) {
+					$query_reg->add( QueryDefinition::from_array( $row ) );
+					$counts['queries']++;
+				}
+			}
+		}
+
+		// --- Relations data (actual links, e.g. Women<->Video/News created after migration) ---
+		if ( ! empty( $data['relations_data'] ) && is_array( $data['relations_data'] ) ) {
+			$counts['relations_data'] = $this->import_relations_data( $data['relations_data'] );
+		}
+
 		return $counts;
+	}
+
+	/**
+	 * Import relation link rows into jetsync_relations table.
+	 *
+	 * @param array<int, mixed> $rows
+	 * @return int
+	 */
+	private function import_relations_data( array $rows ) : int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'jetsync_relations';
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $exists !== $table ) {
+			return 0;
+		}
+		$count = 0;
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) continue;
+			$rel_id = isset( $row['rel_id'] ) ? sanitize_key( (string) $row['rel_id'] ) : '';
+			$parent_id = isset( $row['parent_id'] ) ? (int) $row['parent_id'] : 0;
+			$child_id = isset( $row['child_id'] ) ? (int) $row['child_id'] : 0;
+			if ( '' === $rel_id || $parent_id <= 0 || $child_id <= 0 ) continue;
+			$parent_type = isset( $row['parent_type'] ) && is_string( $row['parent_type'] ) ? sanitize_key( $row['parent_type'] ) : ( get_post_type( $parent_id ) ?: 'post' );
+			$child_type  = isset( $row['child_type'] ) && is_string( $row['child_type'] ) ? sanitize_key( $row['child_type'] ) : ( get_post_type( $child_id ) ?: 'post' );
+			$res = $wpdb->query( $wpdb->prepare(
+				"INSERT IGNORE INTO {$table} (rel_id, parent_id, child_id, parent_type, child_type) VALUES (%s,%d,%d,%s,%s)",
+				$rel_id, $parent_id, $child_id, $parent_type, $child_type
+			) );
+			if ( $res ) $count += (int) $res;
+		}
+		return $count;
 	}
 
 	/**
