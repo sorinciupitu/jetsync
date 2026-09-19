@@ -7,6 +7,9 @@
  * Author:            Google DeepMind Antigravity
  * Author URI:        https://deepmind.google
  * License:           GPL-2.0-or-later
+ * Update URI: https://github.com/sorinciupitu/consent-suite
+ * GitHub Plugin URI: https://github.com/sorinciupitu/consent-suite
+ * Primary Branch: main
  * Text Domain:       jet-sync
  * Domain Path:       /languages
  * Requires PHP:      8.1
