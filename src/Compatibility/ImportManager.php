@@ -257,7 +257,12 @@ class ImportManager {
             $cpt_slugs = array_slice( array_values( array_unique( $cpt_slugs ) ), 0, 12 );
 
             if ( ! empty( $cpt_slugs ) ) {
-                $auto_mbs = $this->generate_metaboxes_from_postmeta( $cpt_slugs );
+                // New: use SnapshotService (DISTINCT DB query) - 100% capture vs sampling 30 posts
+                $auto_mbs = \JetSync\Compatibility\SnapshotService::snapshot_meta_boxes_from_db( $cpt_slugs );
+                // Fallback to old sampler if DISTINCT returns empty (e.g. no postmeta yet)
+                if ( empty( $auto_mbs ) ) {
+                    $auto_mbs = $this->generate_metaboxes_from_postmeta( $cpt_slugs );
+                }
                 foreach ( $auto_mbs as $mb ) {
                     if ( ! $mb instanceof MetaBoxDefinition ) {
                         continue;
@@ -270,12 +275,12 @@ class ImportManager {
                     ];
                 }
                 if ( ! empty( $report['meta_boxes'] ) && empty( $report['storage']['meta_boxes_source'] ) ) {
-                    $report['storage']['meta_boxes_source'] = 'auto_postmeta';
+                    $report['storage']['meta_boxes_source'] = 'auto_postmeta_snapshot';
                 }
             }
         }
 
-        // 4. Analyze Relationships
+        // 4. Analyze Relationships - with snapshot fallback for JetEngine 3.x DB layout
         [ $rel_source, $raw_rels ] = $this->get_jet_engine_collection(
             preferred_option: 'jet_engine_relations',
             like_patterns: [ 'jet_engine%relat%', 'jetengine%relat%' ]
@@ -347,6 +352,46 @@ class ImportManager {
                     'connection_count' => $conn_count,
                     'status'           => 'ready',
                 ];
+            }
+        }
+        // Snapshot fallback: when JetEngine 3.x stores relations only in DB tables / no option, use live snapshot
+        if ( empty( $report['relations'] ) ) {
+            $snap = \JetSync\Compatibility\SnapshotService::snapshot_relations();
+            if ( !empty($snap) ) {
+                // Determine connection counts for snapshot relations
+                $je_table = $wpdb->prefix . 'jet_rel_connections';
+                $has_table = ( $wpdb->get_var( "SHOW TABLES LIKE '$je_table'" ) === $je_table );
+                foreach ( $snap as $rel ) {
+                    $id = (string)($rel['id'] ?? '');
+                    $title = (string)($rel['title'] ?? $id);
+                    $conn_count = 0;
+                    if ( $has_table ) {
+                        $conn_count = (int)$wpdb->get_var( $wpdb->prepare("SELECT COUNT(*) FROM $je_table WHERE rel_id = %s",$id) );
+                    } else {
+                        // scan all jet_rel tables
+                        $tables = $wpdb->get_col( $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->prefix.'jet_rel_%'));
+                        if ( is_array($tables) ) {
+                            foreach ( $tables as $ct ) {
+                                if ( str_starts_with($ct,$wpdb->prefix.'jetsync_')) continue;
+                                $exists = $wpdb->get_var("SHOW TABLES LIKE '$ct'");
+                                if ( $exists !== $ct) continue;
+                                $cols = $wpdb->get_results("SHOW COLUMNS FROM {$ct}", ARRAY_A);
+                                $colNames = is_array($cols) ? array_column($cols,'Field') : [];
+                                if ( !in_array('rel_id',$colNames,true)) continue;
+                                $conn_count += (int)$wpdb->get_var( $wpdb->prepare("SELECT COUNT(*) FROM {$ct} WHERE rel_id = %s", $id));
+                            }
+                        }
+                    }
+                    $report['relations'][] = [
+                        'id' => $id,
+                        'title' => $title,
+                        'connection_count' => $conn_count,
+                        'status' => 'snapshot',
+                    ];
+                }
+                if ( !empty($report['relations']) && empty($report['storage']['relations_source']) ) {
+                    $report['storage']['relations_source'] = 'snapshot_db';
+                }
             }
         }
 
@@ -516,14 +561,17 @@ class ImportManager {
             }
             $cpts_for_auto = array_slice( $cpts_for_auto, 0, 12 );
 
-            $auto_mbs = $this->generate_metaboxes_from_postmeta( $cpts_for_auto );
+            $auto_mbs = \JetSync\Compatibility\SnapshotService::snapshot_meta_boxes_from_db( $cpts_for_auto );
+            if ( empty($auto_mbs) ) {
+                $auto_mbs = $this->generate_metaboxes_from_postmeta( $cpts_for_auto );
+            }
             foreach ( $auto_mbs as $mb ) {
                 $this->metabox_registry->add( $mb );
                 $results['imported_metaboxes']++;
             }
         }
 
-        // 4. Import Relationships Configurations
+        // 4. Import Relationships Configurations - with snapshot fallback
         [ , $raw_rels ] = $this->get_jet_engine_collection(
             preferred_option: 'jet_engine_relations',
             like_patterns: [ 'jet_engine%relat%', 'jetengine%relat%' ]
@@ -537,6 +585,26 @@ class ImportManager {
                 } else {
                     $results['errors'][] = sprintf( 'Failed to translate Relation array: %s', print_r( $raw_rel, true ) );
                 }
+            }
+        }
+        // Snapshot fallback for JetEngine 3.x DB-only relations
+        if ( 0 === (int)$results['imported_relations'] ) {
+            $snapRels = \JetSync\Compatibility\SnapshotService::snapshot_relations();
+            foreach ( $snapRels as $relArr ) {
+                $definition = $this->relation_adapter->translate( ['id'=>$relArr['id'],'args'=>$relArr] );
+                if ( !$definition ) {
+                    // build directly if adapter fails on snapshot format
+                    $definition = new \JetSync\Registry\Model\RelationDefinition(
+                        id: $relArr['id'],
+                        title: $relArr['title'] ?? $relArr['id'],
+                        parent_object: $relArr['parent_object'] ?? 'post',
+                        child_object: $relArr['child_object'] ?? 'post',
+                        type: $relArr['type'] ?? 'many_to_many',
+                        active: true
+                    );
+                }
+                $this->relation_registry->add( $definition );
+                $results['imported_relations']++;
             }
         }
 
@@ -1465,10 +1533,16 @@ class ImportManager {
     }
 
     private function get_jet_engine_collection_from_posts( string $kind ) : array {
+        // JetEngine 3.x stores in multiple CPTs: jet-engine, jet-engine-cpt, cct, jet-cct, etc.
+        $jet_post_types = ['jet-engine','jet-engine-cpt','jet-cpt','jet-engine-tax','cct','jet-cct','jet-engine-relation','jet-engine-meta'];
+        // Only query valid registered post types to avoid WP error
+        $jet_post_types = array_values(array_filter($jet_post_types, fn($pt) => post_type_exists($pt) || $pt === 'jet-engine'));
+        // Ensure at least jet-engine
+        if ( !in_array('jet-engine',$jet_post_types,true)) $jet_post_types[] = 'jet-engine';
         $posts = \get_posts( [
-            'post_type'      => 'jet-engine',
+            'post_type'      => $jet_post_types,
             'post_status'    => 'any',
-            'numberposts'    => 200,
+            'numberposts'    => 300,
             'orderby'        => 'ID',
             'order'          => 'ASC',
             'fields'         => 'ids',

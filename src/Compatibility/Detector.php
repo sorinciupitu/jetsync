@@ -28,14 +28,21 @@ class Detector {
 
     /**
      * Get count of Custom Post Types stored in JetEngine.
+     * Falls back to runtime snapshot (WP live registration) when option storage empty - ensures 100% detection for JetEngine 3.x
      *
      * @return int
      */
     public function get_cpt_count() : int {
-        return $this->get_collection_count(
+        $cnt = $this->get_collection_count(
             preferred_option: 'jet_engine_post_types',
             like_patterns: [ 'jet_engine%post%type%', 'jetengine%post%type%' ]
         );
+        if ( $cnt > 0 ) return $cnt;
+        // Fallback: snapshot live WP registrations (version-agnostic, works without JetEngine option)
+        // This captures what JetEngine actually registered, regardless of its internal storage format.
+        $snap = SnapshotService::snapshot_post_types_and_taxonomies();
+        // Filter to Jetsync-managed vs all? Dashboard wants JetEngine count, so exclude core but include JetEngine-like.
+        return count( $snap['cpts'] );
     }
 
     /**
@@ -44,10 +51,13 @@ class Detector {
      * @return int
      */
     public function get_taxonomy_count() : int {
-        return $this->get_collection_count(
+        $cnt = $this->get_collection_count(
             preferred_option: 'jet_engine_taxonomies',
             like_patterns: [ 'jet_engine%tax%', 'jetengine%tax%' ]
         );
+        if ( $cnt > 0 ) return $cnt;
+        $snap = SnapshotService::snapshot_post_types_and_taxonomies();
+        return count( $snap['taxonomies'] );
     }
 
     private function normalize_collection( mixed $raw ) : array {

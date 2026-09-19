@@ -73,17 +73,30 @@ class DashboardPage extends BasePage {
         }
 
         $je_meta_fields_count = 0;
-        if ( isset( $last_scan['meta_boxes'] ) && is_array( $last_scan['meta_boxes'] ) ) {
+        if ( isset( $last_scan['meta_boxes'] ) && is_array( $last_scan['meta_boxes'] ) && !empty($last_scan['meta_boxes']) ) {
             foreach ( $last_scan['meta_boxes'] as $mb ) {
                 if ( is_array( $mb ) && isset( $mb['fields_count'] ) ) {
                     $je_meta_fields_count += (int) $mb['fields_count'];
                 }
             }
         }
+        // Fallback: live snapshot when no scan yet - guarantees dashboard is not 0
+        if ( 0 === $je_meta_fields_count ) {
+            $snap = \JetSync\Compatibility\SnapshotService::snapshot_post_types_and_taxonomies();
+            $ptSlugs = array_column($snap['cpts'],'slug');
+            if ( !empty($ptSlugs) ) {
+                $autoMbs = \JetSync\Compatibility\SnapshotService::snapshot_meta_boxes_from_db(array_slice($ptSlugs,0,12));
+                foreach ( $autoMbs as $mb ) $je_meta_fields_count += count($mb->get_fields());
+            }
+        }
 
         $je_relations_count = 0;
-        if ( isset( $last_scan['relations'] ) && is_array( $last_scan['relations'] ) ) {
+        if ( isset( $last_scan['relations'] ) && is_array( $last_scan['relations'] ) && !empty($last_scan['relations']) ) {
             $je_relations_count = count( $last_scan['relations'] );
+        }
+        if ( 0 === $je_relations_count && $detector->is_jet_engine_active() ) {
+            $snapRels = \JetSync\Compatibility\SnapshotService::snapshot_relations();
+            $je_relations_count = count($snapRels);
         }
 
         // Generate wizard security nonce

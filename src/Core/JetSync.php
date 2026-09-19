@@ -107,6 +107,9 @@ class JetSync {
             $this->get( 'logger' )
         ) );
 
+        // Boot JetEngine emulator for full replacement (must be after registries)
+        $this->maybe_init_jetengine_emulator();
+
         // Boot Admin & AJAX Controllers.
         if ( \is_admin() ) {
             $this->set( 'admin', new AdminController( $this ) );
@@ -171,6 +174,24 @@ class JetSync {
         if ( $logger ) {
             $logger->info( 'JetSync deactivated successfully.' );
         }
+    }
+
+    private function maybe_init_jetengine_emulator() : void {
+        // Only emulate when JetEngine is not active but JetSync has data to take over
+        if ( \class_exists( 'Jet_Engine', false ) || \defined( 'JET_ENGINE_VERSION' ) ) {
+            return;
+        }
+        // Defer actual class definition to plugins_loaded priority 1 (before init)
+        \add_action( 'plugins_loaded', function() {
+            if ( \class_exists( 'Jet_Engine', false ) ) return;
+            $reg = $this->get( 'relation_registry' );
+            $eng = $this->get( 'relations_engine' );
+            if ( $reg instanceof \JetSync\Registry\RelationRegistry && $eng instanceof \JetSync\Runtime\RelationsEngine ) {
+                $emu = \JetSync\Compatibility\JetEngineEmulator::get_instance( $reg, $eng );
+                \JetSync\Compatibility\JetEngineEmulator::set_global_instance( $emu );
+                \JetSync\Compatibility\JetEngineEmulator::maybe_emulate( $reg, $eng );
+            }
+        }, 1 );
     }
 
     /**
