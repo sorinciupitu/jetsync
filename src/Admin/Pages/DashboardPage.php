@@ -273,6 +273,16 @@ class DashboardPage extends BasePage {
                                     <button class="jetsync-btn primary-btn btn-full trigger-migration-tab">
                                         <?php esc_html_e( 'Go to Migration Wizard', 'jet-sync' ); ?>
                                     </button>
+                                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=jet-sync-migration#jetsync-export-card' ) ); ?>"
+                                       class="jetsync-btn secondary-btn btn-full" style="margin-top:0.75rem;">
+                                        <span class="dashicons dashicons-download" style="margin-right:0.35rem;"></span>
+                                        <?php esc_html_e( 'Export / Import', 'jet-sync' ); ?>
+                                    </a>
+                                    <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=jetsync_export_config' ), 'jetsync_export' ) ); ?>"
+                                       class="jetsync-btn secondary-btn btn-full" style="margin-top:0.5rem;">
+                                        <span class="dashicons dashicons-media-archive" style="margin-right:0.35rem;"></span>
+                                        <?php esc_html_e( 'Download JSON Export', 'jet-sync' ); ?>
+                                    </a>
                                 </div>
                             </aside>
                         </div>
