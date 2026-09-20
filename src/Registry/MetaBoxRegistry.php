@@ -153,6 +153,22 @@ class MetaBoxRegistry extends BaseRegistry {
                     $options = [ [ 'value' => '0', 'label' => 'Nu' ], [ 'value' => '1', 'label' => 'Da' ] ];
                     $local_changed = true;
                 }
+                // Fix measurement/model fields that were incorrectly inferred as media/gallery -> should be text
+                $forced_text_keys = ['bust','waist','hips','shoe','shoes','height','hair','eyes','eye','size','weight','profile'];
+                foreach ($forced_text_keys as $kw) {
+                    if ( str_contains($name, $kw) && in_array($type, ['media','gallery'], true) ) {
+                        $type = 'text';
+                        $options = [];
+                        $local_changed = true;
+                        break;
+                    }
+                }
+                // Also handle generic 'image' mis-fire for bust: ensure image only for cover/thumbnail
+                if ( in_array($type, ['media','gallery'], true) && str_contains($name,'bust') ) {
+                    $type = 'text';
+                    $options = [];
+                    $local_changed = true;
+                }
 
                 if ( $local_changed ) {
                     $new_fields[] = new MetaFieldDefinition(

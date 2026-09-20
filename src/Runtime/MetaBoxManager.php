@@ -76,12 +76,25 @@ class MetaBoxManager {
             JETSYNC_VERSION
         );
 
+        $needs_sortable = false;
+        if ( $needs_media ) {
+            // Check if any gallery exists to need sortable
+            foreach ( $meta_boxes as $mb ) {
+                foreach ( $mb->get_fields() as $f ) {
+                    if ( 'gallery' === $f->get_type() ) { $needs_sortable = true; break 2; }
+                }
+            }
+        }
+
         if ( $needs_media ) {
             \wp_enqueue_media();
+            if ( $needs_sortable ) {
+                \wp_enqueue_script( 'jquery-ui-sortable' );
+            }
             \wp_enqueue_script(
                 'jet-sync-metabox-media',
                 JETSYNC_URL . 'assets/js/metabox-media.js',
-                [ 'jquery' ],
+                $needs_sortable ? [ 'jquery', 'jquery-ui-sortable' ] : [ 'jquery' ],
                 JETSYNC_VERSION,
                 true
             );
@@ -90,7 +103,7 @@ class MetaBoxManager {
         \wp_enqueue_script(
             'jet-sync-metabox-ui',
             JETSYNC_URL . 'assets/js/metabox-ui.js',
-            [ 'jquery' ],
+            [ 'jquery', 'jquery-ui-sortable' ],
             JETSYNC_VERSION,
             true
         );
@@ -378,6 +391,46 @@ class MetaBoxManager {
     }
 
     /**
+     * Sort fields to match model.jpeg expected order.
+     * Only applies to model-like metaboxes (contains model-* fields); otherwise preserves original order.
+     * @param array<MetaFieldDefinition> $fields
+     * @return array<MetaFieldDefinition>
+     */
+    private function sort_fields_for_display( array $fields ) : array {
+        // Check if this is a model metabox (has at least one model-* field)
+        $is_model = false;
+        foreach ($fields as $f) { if (str_contains(strtolower($f->get_name()),'model') || strtolower($f->get_name())==='updated') { $is_model=true; break; } }
+        if (!$is_model) return $fields;
+
+        $order_map = [
+            'model-name' => 0, 'model_name' => 0,
+            'model-section' => 1, 'model_section' => 1,
+            'updated' => 2,
+            'cover-model' => 3, 'cover_model' => 3, 'cover' => 3,
+            'height' => 4, 'height-model' => 4,
+            'bust' => 5, 'bust-model' => 5,
+            'waist' => 6, 'waist-model' => 6,
+            'hips' => 7, 'hips-model' => 7,
+            'shoes' => 8, 'shoe' => 8, 'shoes-model' => 8,
+            'hair' => 9, 'hair-model' => 9,
+            'eyes' => 10, 'eye' => 10, 'eyes-model' => 10,
+            'model-gallery' => 11, 'gallery' => 11,
+            'uri' => 12, 'url-model' => 12, 'uri-model' => 12,
+            'profil-instagram' => 13, 'instagram' => 13, 'profil' => 13,
+        ];
+        usort($fields, function($a,$b) use ($order_map) {
+            $ka = strtolower($a->get_name());
+            $kb = strtolower($b->get_name());
+            $pa = 99; $pb = 99;
+            foreach ($order_map as $key=>$prio) { if (str_contains($ka,$key)) { $pa=$prio; break; } }
+            foreach ($order_map as $key=>$prio) { if (str_contains($kb,$key)) { $pb=$prio; break; } }
+            if ($pa=== $pb) return 0;
+            return $pa < $pb ? -1 : 1;
+        });
+        return $fields;
+    }
+
+    /**
      * Rendering callback. Renders custom form input controls.
      *
      * @param \WP_Post $post Current post object.
@@ -395,6 +448,8 @@ class MetaBoxManager {
         \wp_nonce_field( $nonce_action, $nonce_name );
 
         $fields = $metabox->get_fields();
+        // Reorder to match model.jpeg expected layout (Model Name -> Section -> Updated -> Cover -> measurements -> gallery ...)
+        $fields = $this->sort_fields_for_display( $fields );
 
         echo '<div class="jetsync-meta-box-container jetsync-model-layout">';
 
@@ -580,7 +635,7 @@ class MetaBoxManager {
                     foreach ( $ids as $attachment_id ) {
                         $thumb = \wp_get_attachment_image_url( (int) $attachment_id, 'thumbnail' );
                         if ( is_string( $thumb ) && '' !== $thumb ) {
-                            echo '<div class="jetsync-gallery-item"><img src="' . \esc_url( $thumb ) . '" alt="" /></div>';
+                            echo '<div class="jetsync-gallery-item" data-id="' . \esc_attr( (string) $attachment_id ) . '"><img src="' . \esc_url( $thumb ) . '" alt="" /><span class="jetsync-gallery-remove" title="Remove">&times;</span></div>';
                         }
                     }
                     if ( empty( $ids ) ) {

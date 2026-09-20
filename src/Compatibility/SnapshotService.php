@@ -132,10 +132,12 @@ class SnapshotService {
             $field_objects = [];
             foreach ( array_slice( $filtered, 0, 40 ) as $k ) {
                 $type = self::infer_type_from_samples( $sample_ids, $k );
+                $opts = self::get_default_options_for_key( strtolower($k) );
                 $field_objects[] = new MetaFieldDefinition(
                     name: sanitize_key($k),
                     title: ucwords( str_replace(['_','-'],' ', $k) ),
-                    type: $type
+                    type: $type,
+                    options: $opts
                 );
             }
 
@@ -155,14 +157,36 @@ class SnapshotService {
         return $out;
     }
 
+    private static function get_default_options_for_key( string $k ) : array {
+        if ( str_contains($k,'model-section') || str_contains($k,'model_section')) {
+            return [
+                ['value'=>'Special Booking','label'=>'Special Booking'],
+                ['value'=>'Main board','label'=>'Main board'],
+                ['value'=>'Development','label'=>'Development'],
+                ['value'=>'Commercial','label'=>'Commercial'],
+                ['value'=>'Runway','label'=>'Runway'],
+                ['value'=>'General','label'=>'General'],
+            ];
+        }
+        if ( $k === 'updated' || str_ends_with($k,'-updated') || str_ends_with($k,'_updated')) {
+            return [['value'=>'0','label'=>'Nu'],['value'=>'1','label'=>'Da']];
+        }
+        return [];
+    }
+
     private static function infer_type_from_samples( array $sample_ids, string $meta_key ) : string {
         $k = strtolower($meta_key);
-        // reuse registry logic but simplified
-        if ( str_contains($k,'gallery')) return 'gallery';
-        if ( str_contains($k,'cover') || str_contains($k,'thumbnail') || str_contains($k,'image')) return 'media';
-        if ( str_contains($k,'instagram') || str_contains($k,'uri') || str_contains($k,'url') || str_contains($k,'link')) return 'url';
+        // Known typed keys have priority
         if ( str_contains($k,'model-section') || str_contains($k,'model_section')) return 'checkbox';
         if ( $k === 'updated' || str_ends_with($k,'-updated') || str_ends_with($k,'_updated')) return 'switcher';
+        if ( str_contains($k,'gallery')) return 'gallery';
+        if ( str_contains($k,'cover') || str_contains($k,'thumbnail') ) return 'media';
+        // Only treat generic 'image' as media if it is prominent, to avoid bust/height misclass
+        if ( $k === 'image' || str_ends_with($k,'_image') || str_ends_with($k,'-image') || str_contains($k,'_image_') || str_contains($k,'-image-')) return 'media';
+        if ( str_contains($k,'instagram') || str_contains($k,'uri') || str_contains($k,'url') || str_contains($k,'link')) return 'url';
+        // Force text for measurement / model attributes (prevents 80 being seen as attachment 80)
+        $forced_text = ['bust','waist','hips','shoe','height','hair','eyes','eye','size','weight','profile'];
+        foreach ($forced_text as $kw) { if ( str_contains($k,$kw)) return 'text'; }
 
         // sample DB values
         foreach ( $sample_ids as $pid ) {

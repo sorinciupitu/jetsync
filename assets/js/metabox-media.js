@@ -3,6 +3,33 @@ jQuery(function ($) {
     return $wrap.hasClass('jetsync-media-gallery') || $wrap.find('.jetsync-gallery-grid').length > 0;
   }
 
+  function updateGalleryInput($wrap) {
+    var $input = $wrap.find("input.jetsync-media-value");
+    var $grid = $wrap.find(".jetsync-gallery-grid");
+    if (!$grid.length) return;
+    var ids = [];
+    $grid.find(".jetsync-gallery-item").each(function(){
+      var id = $(this).data("id");
+      if (id) ids.push(id);
+    });
+    $input.val(ids.join(","));
+  }
+
+  function initGallerySortable($grid) {
+    if (!$grid.length || $grid.data("sortable-init")) return;
+    if (!$.fn.sortable) return;
+    $grid.sortable({
+      items: ".jetsync-gallery-item",
+      cursor: "move",
+      placeholder: "jetsync-gallery-placeholder",
+      tolerance: "pointer",
+      update: function() {
+        updateGalleryInput($grid.closest(".jetsync-media-field"));
+      }
+    });
+    $grid.data("sortable-init", true);
+  }
+
   function renderGalleryPreview($wrap, attachments) {
     var $grid = $wrap.find(".jetsync-gallery-grid");
     var $hiddenPreview = $wrap.find(".jetsync-media-preview");
@@ -18,10 +45,11 @@ jQuery(function ($) {
         (att.sizes && att.sizes.thumbnail && att.sizes.thumbnail.url) ||
         att.url ||
         "";
-      if (!url) return;
+      if (!url || !att.id) return;
       if ($grid.length) {
-        var $item = $('<div class="jetsync-gallery-item"></div>');
+        var $item = $('<div class="jetsync-gallery-item"></div>').attr("data-id", att.id);
         $item.append($('<img />', { src: url }));
+        $item.append($('<span class="jetsync-gallery-remove" title="Remove">&times;</span>'));
         $container.append($item);
       } else {
         $container.append(
@@ -40,6 +68,7 @@ jQuery(function ($) {
         );
       }
     });
+    if ($grid.length) initGallerySortable($grid);
   }
 
   function renderSinglePreview($wrap, attachment) {
@@ -111,6 +140,25 @@ jQuery(function ($) {
     } else {
       $preview.empty().removeClass('has-image').append('<div class="jetsync-media-placeholder"><span class="dashicons dashicons-format-image"></span></div>');
     }
+  });
+
+  // Remove single gallery item
+  $(document).on("click", ".jetsync-gallery-remove", function(e){
+    e.preventDefault();
+    var $wrap = $(this).closest(".jetsync-media-field");
+    $(this).closest(".jetsync-gallery-item").remove();
+    var $grid = $wrap.find(".jetsync-gallery-grid");
+    if ($grid.find(".jetsync-gallery-item").length === 0) {
+      $grid.append('<div class="jetsync-gallery-empty">No images selected.</div>');
+    }
+    updateGalleryInput($wrap);
+  });
+
+  // Init sortable on load
+  $(function(){
+    $(".jetsync-gallery-grid").each(function(){
+      initGallerySortable($(this));
+    });
   });
 });
 
