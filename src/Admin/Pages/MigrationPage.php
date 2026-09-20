@@ -394,6 +394,28 @@ class MigrationPage extends BasePage {
 					</div>
 				</section>
 
+				<!-- ============================================================
+				     DANGER ZONE — Reset
+				     ============================================================ -->
+				<section class="migration-card migration-card-full" id="jetsync-reset-card" style="border-color: rgba(239,68,68,0.35);">
+					<div class="migration-card-header">
+						<span class="dashicons dashicons-warning" style="color:#ef4444;"></span>
+						<h3 style="color:#ef4444;"><?php esc_html_e( 'Danger Zone — Reset', 'jet-sync' ); ?></h3>
+					</div>
+					<p style="color:var(--text-secondary); line-height:1.5; margin:0 0 1rem;">
+						<?php esc_html_e( 'Șterge toate definițiile JetSync (CPT, taxonomii, meta fields, relații, listings, queries) și gólește tabela jetsync_relations. Folosește pentru a porni un import nou de la zero când ceva a mers prost. Nu șterge postările/termenii WordPress.', 'jet-sync' ); ?>
+					</p>
+					<div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+						<input type="text" id="jetsync-reset-confirm" placeholder="Tastează RESET" class="regular-text" style="max-width:160px; text-transform:uppercase;" autocomplete="off">
+						<button id="jetsync-full-reset" class="jetsync-btn danger-btn-outline" disabled>
+							<span class="dashicons dashicons-trash"></span>
+							<?php esc_html_e( 'Resetează totul & pornește de la zero', 'jet-sync' ); ?>
+						</button>
+					</div>
+					<div id="jetsync-reset-log" class="migration-ajax-log" style="display:none; margin-top:1rem;"></div>
+					<p class="description" style="margin-top:0.5rem;"><?php esc_html_e( 'Necesită tastarea RESET. Acțiune ireversibilă pentru configurația JetSync.', 'jet-sync' ); ?></p>
+				</section>
+
 			</div><!-- .jetsync-migration-grid -->
 		</div><!-- .wrap -->
 
@@ -603,6 +625,43 @@ class MigrationPage extends BasePage {
 					}
 				});
 			});
+
+			// --- Full reset ---
+			$('#jetsync-full-reset').on('click', function() {
+				var confirmVal = ($('#jetsync-reset-confirm').val() || '').trim();
+				if ( confirmVal !== 'RESET' ) {
+					alert('<?php echo esc_js( __( 'Tastează RESET în câmp pentru a confirma.', 'jet-sync' ) ); ?>');
+					$('#jetsync-reset-confirm').focus();
+					return;
+				}
+				if ( ! confirm('<?php echo esc_js( __( 'Sigur vrei să ștergi TOT? Toate CPT-urile, taxonomiile, meta fields, relațiile, listings, queries și link-urile vor fi șterse din JetSync. Postările WP rămân, dar va trebui să reimporți.', 'jet-sync' ) ); ?>') ) {
+					return;
+				}
+				var $btn = $(this);
+				var $log = $('#jetsync-reset-log');
+				$btn.prop('disabled', true);
+				$log.show().html('<div class="log-entry log-info"><?php echo esc_js( __( 'Se resetează…', 'jet-sync' ) ); ?></div>');
+				$.post( ajaxUrl, {
+					action  : 'jetsync_full_reset',
+					_wpnonce: nonce,
+					confirm : 'RESET'
+				}, function( res ) {
+					if ( res.success ) {
+						$log.html('<div class="log-entry log-success">' + $('<span>').text(res.data.message).html() + '</div>');
+						setTimeout( function(){ location.reload(); }, 900 );
+					} else {
+						$log.html('<div class="log-entry log-error">' + $('<span>').text((res.data && res.data.message) || '<?php echo esc_js( __( 'Reset failed.', 'jet-sync' ) ); ?>').html() + '</div>');
+						$btn.prop('disabled', false);
+					}
+				}).fail( function(){
+					$log.html('<div class="log-entry log-error"><?php echo esc_js( __( 'Server error during reset.', 'jet-sync' ) ); ?></div>');
+					$btn.prop('disabled', false);
+				});
+			});
+			$('#jetsync-reset-confirm').on('input', function(){
+				var ok = ($(this).val()||'').trim() === 'RESET';
+				$('#jetsync-full-reset').prop('disabled', !ok).toggleClass('danger-btn-outline', ok);
+			}).trigger('input');
 
 		})(jQuery);
 		</script>

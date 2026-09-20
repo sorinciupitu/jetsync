@@ -31,6 +31,7 @@ class AjaxController {
         \add_action( 'wp_ajax_jetsync_validate_integrity',     [ $this, 'validate_integrity' ] );
         \add_action( 'wp_ajax_jetsync_repair_integrity',       [ $this, 'repair_integrity' ] );
         \add_action( 'wp_ajax_jetsync_resync_jetengine',       [ $this, 'resync_jetengine' ] );
+        \add_action( 'wp_ajax_jetsync_full_reset',            [ $this, 'full_reset' ] );
         \add_action( 'wp_ajax_jetsync_get_listing_fields',     [ $this, 'get_listing_fields' ] );
     }
 
@@ -409,6 +410,69 @@ class AjaxController {
         \wp_send_json_success( [
             'message' => \__( 'Re-sync completed.', 'jet-sync' ),
             'results' => $results,
+        ] );
+    }
+
+    /**
+     * Full reset: wipe all JetSync registries and relation data to start import from zero.
+     * Requires typing RESET as confirmation.
+     */
+    public function full_reset() : void {
+        \check_ajax_referer( 'jetsync_ajax', '_wpnonce' );
+
+        if ( ! \current_user_can( Capabilities::MANAGE ) ) {
+            \wp_send_json_error( [ 'message' => \__( 'Insufficient permissions.', 'jet-sync' ) ], 403 );
+        }
+
+        $confirm = isset( $_POST['confirm'] ) ? trim( (string) $_POST['confirm'] ) : '';
+        if ( 'RESET' !== $confirm ) {
+            \wp_send_json_error( [ 'message' => \__( 'Type RESET to confirm.', 'jet-sync' ) ] );
+        }
+
+        global $wpdb;
+
+        // Options to wipe (keep jetsync_settings and installed_version for UX)
+        $options = [
+            'jetsync_cpt_registry',
+            'jetsync_taxonomy_registry',
+            'jetsync_meta_boxes',
+            'jetsync_relations',
+            'jetsync_listings',
+            'jetsync_queries',
+            'jetsync_migration_plan',
+            'jetsync_last_scan_report',
+            'jetsync_last_integrity_report',
+            'jetsync_last_repair_report',
+            'jetsync_model_fields_repaired_v2',
+            'jetsync_last_scan_report',
+        ];
+
+        foreach ( array_unique( $options ) as $opt ) {
+            \delete_option( $opt );
+        }
+
+        // Truncate relation tables (preserve structure)
+        $tables = [ $wpdb->prefix . 'jetsync_relations', $wpdb->prefix . 'jetsync_relation_meta' ];
+        foreach ( $tables as $table ) {
+            $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+            if ( $exists === $table ) {
+                $wpdb->query( "TRUNCATE TABLE {$table}" );
+            }
+        }
+
+        // Also clear any leftover jetsync_options via Installer re-init
+        \delete_option( 'jetsync_last_scan_report' );
+
+        \flush_rewrite_rules( false );
+
+        /** @var \JetSync\Core\Logger|null $logger */
+        $logger = JetSync::get_instance()->get( 'logger' );
+        if ( $logger ) {
+            $logger->info( 'Full reset executed by user ' . get_current_user_id() );
+        }
+
+        \wp_send_json_success( [
+            'message' => \__( 'JetSync a fost resetat complet. Poți porni un nou import de la zero.', 'jet-sync' ),
         ] );
     }
 }
