@@ -356,7 +356,7 @@ class MetaBoxManager {
         if ( str_contains( $k, 'model-section' ) || str_contains( $k, 'model_section' ) ) {
             return 'jetsync-col-5';
         }
-        if ( $k === 'updated' || $k === 'updated?' ) {
+        if ( str_contains($k,'updated') ) {
             return 'jetsync-col-3';
         }
         if ( str_contains( $k, 'cover' ) ) {

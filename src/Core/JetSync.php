@@ -228,7 +228,15 @@ class JetSync {
             \update_option( 'jetsync_installed_version', JETSYNC_VERSION );
         }
 
-        // Self-healing for model field types (checkbox/switcher + bust/media misclass) — runs once per version.
+        // Self-healing for model field types (checkbox/switcher + bust/media misclass + updated-men) — runs once per version.
+        $repaired_flag_v4 = \get_option( 'jetsync_model_fields_repaired_v4', false );
+        if ( ! $repaired_flag_v4 ) {
+            $mb_registry = $this->get( 'metabox_registry' );
+            if ( $mb_registry instanceof \JetSync\Registry\MetaBoxRegistry ) {
+                $mb_registry->repair_known_model_fields();
+                \update_option( 'jetsync_model_fields_repaired_v4', true );
+            }
+        }
         $repaired_flag_v3 = \get_option( 'jetsync_model_fields_repaired_v3', false );
         if ( ! $repaired_flag_v3 ) {
             $mb_registry = $this->get( 'metabox_registry' );

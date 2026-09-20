@@ -168,7 +168,7 @@ class SnapshotService {
                 ['value'=>'General','label'=>'General'],
             ];
         }
-        if ( $k === 'updated' || str_ends_with($k,'-updated') || str_ends_with($k,'_updated')) {
+        if ( str_contains($k,'updated')) {
             return [['value'=>'0','label'=>'Nu'],['value'=>'1','label'=>'Da']];
         }
         return [];
@@ -178,7 +178,7 @@ class SnapshotService {
         $k = strtolower($meta_key);
         // Known typed keys have priority
         if ( str_contains($k,'model-section') || str_contains($k,'model_section')) return 'checkbox';
-        if ( $k === 'updated' || str_ends_with($k,'-updated') || str_ends_with($k,'_updated')) return 'switcher';
+        if ( str_contains($k,'updated')) return 'switcher';
         if ( str_contains($k,'gallery')) return 'gallery';
         if ( str_contains($k,'cover') || str_contains($k,'thumbnail') ) return 'media';
         // Only treat generic 'image' as media if it is prominent, to avoid bust/height misclass

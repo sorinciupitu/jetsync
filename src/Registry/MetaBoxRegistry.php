@@ -207,11 +207,8 @@ class MetaBoxRegistry extends BaseRegistry {
         if ( str_contains( $key, 'model-section' ) || str_contains( $key, 'model_section' ) ) {
             return 'checkbox';
         }
-        if ( 'updated' === $key || str_contains( $key, 'updated' ) ) {
-            // exact 'updated' or 'updated?' should be switcher
-            if ( $key === 'updated' || $key === 'updated?' || str_ends_with( $key, '-updated' ) || str_ends_with( $key, '_updated' ) ) {
-                return 'switcher';
-            }
+        if ( str_contains( $key, 'updated' ) ) {
+            return 'switcher';
         }
         if ( str_contains( $key, 'cover' ) && ( str_contains( $key, 'model' ) || str_contains( $key, 'image' ) ) ) {
             return 'media';
