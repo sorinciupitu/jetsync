@@ -3,7 +3,7 @@
  * Plugin Name:       JetSync
  * Plugin URI:        https://github.com/sorinciupitu/jetsync
  * Description:       A professional alternative and successor to JetEngine for custom post types, taxonomies, meta fields, relations, and listings.
- * Version:           1.6.1
+ * Version:           1.6.2
  * Author:            Google DeepMind Antigravity
  * Author URI:        https://deepmind.google
  * License:           GPL-2.0-or-later
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define Plugin Constants.
-define( 'JETSYNC_VERSION', '1.6.1' );
+define( 'JETSYNC_VERSION', '1.6.2' );
 define( 'JETSYNC_PATH', \plugin_dir_path( __FILE__ ) );
 define( 'JETSYNC_URL', \plugin_dir_url( __FILE__ ) );
 
