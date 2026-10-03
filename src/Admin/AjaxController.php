@@ -303,9 +303,8 @@ class AjaxController {
             \wp_send_json_error( [ 'message' => \__( 'No file uploaded.', 'jet-sync' ) ] );
         }
 
-        $check = \wp_check_filetype_and_ext( $tmp, $name );
-        $ext = is_array( $check ) ? (string) ( $check['ext'] ?? '' ) : '';
-        if ( 'json' !== strtolower( $ext ) ) {
+        $extension = strtolower( (string) pathinfo( $name, PATHINFO_EXTENSION ) );
+        if ( 'json' !== $extension ) {
             \wp_send_json_error( [ 'message' => \__( 'Invalid file type. Please upload a JSON export.', 'jet-sync' ) ] );
         }
 
