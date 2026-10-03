@@ -37,7 +37,7 @@ jQuery(function ($) {
     if (!$container.length) $container = $wrap.find(".jetsync-media-preview");
     $container.empty();
     if (!attachments.length) {
-      $container.append($('<div class="jetsync-gallery-empty">No images selected.</div>'));
+      $container.append($('<div class="jetsync-gallery-empty"><span class="dashicons dashicons-format-gallery"></span><strong>No gallery images yet</strong><span>Choose images to build the model portfolio.</span></div>'));
       return;
     }
     attachments.forEach(function (att) {
@@ -49,7 +49,7 @@ jQuery(function ($) {
       if ($grid.length) {
         var $item = $('<div class="jetsync-gallery-item"></div>').attr("data-id", att.id);
         $item.append($('<img />', { src: url }));
-        $item.append($('<span class="jetsync-gallery-remove" title="Remove">&times;</span>'));
+        $item.append($('<button type="button" class="jetsync-gallery-remove" title="Remove image" aria-label="Remove image">&times;</button>'));
         $container.append($item);
       } else {
         $container.append(
@@ -136,7 +136,7 @@ jQuery(function ($) {
     var $preview = $wrap.find(".jetsync-media-preview");
     var $grid = $wrap.find(".jetsync-gallery-grid");
     if ($grid.length) {
-      $grid.empty().append('<div class="jetsync-gallery-empty">No images selected.</div>');
+      $grid.empty().append('<div class="jetsync-gallery-empty"><span class="dashicons dashicons-format-gallery"></span><strong>No gallery images yet</strong><span>Choose images to build the model portfolio.</span></div>');
     } else {
       $preview.empty().removeClass('has-image').append('<div class="jetsync-media-placeholder"><span class="dashicons dashicons-format-image"></span></div>');
     }
@@ -149,7 +149,7 @@ jQuery(function ($) {
     $(this).closest(".jetsync-gallery-item").remove();
     var $grid = $wrap.find(".jetsync-gallery-grid");
     if ($grid.find(".jetsync-gallery-item").length === 0) {
-      $grid.append('<div class="jetsync-gallery-empty">No images selected.</div>');
+      $grid.append('<div class="jetsync-gallery-empty"><span class="dashicons dashicons-format-gallery"></span><strong>No gallery images yet</strong><span>Choose images to build the model portfolio.</span></div>');
     }
     updateGalleryInput($wrap);
   });
@@ -161,4 +161,3 @@ jQuery(function ($) {
     });
   });
 });
-

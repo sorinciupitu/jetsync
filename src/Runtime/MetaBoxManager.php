@@ -347,32 +347,84 @@ class MetaBoxManager {
         );
     }
 
+    private function get_field_section( string $field_name, string $field_type ) : string {
+        $k = strtolower( $field_name );
+
+        if ( str_contains( $k, 'cover' ) || 'gallery' === $field_type || str_contains( $k, 'gallery' ) || 'media' === $field_type ) {
+            return 'media';
+        }
+
+        if ( str_contains( $k, 'height' ) || str_contains( $k, 'bust' ) || str_contains( $k, 'waist' ) || str_contains( $k, 'hips' ) || str_contains( $k, 'shoes' ) || str_contains( $k, 'shoe' ) || str_contains( $k, 'hair' ) || str_contains( $k, 'eyes' ) || str_contains( $k, 'eye' ) ) {
+            return 'measurements';
+        }
+
+        if ( str_contains( $k, 'instagram' ) || str_contains( $k, 'profil' ) || str_contains( $k, 'uri' ) || str_contains( $k, 'url' ) ) {
+            return 'links';
+        }
+
+        if ( str_contains( $k, 'model-name' ) || str_contains( $k, 'model_name' ) || str_contains( $k, 'model_section' ) || str_contains( $k, 'model-section' ) || str_contains( $k, 'updated' ) || 'checkbox' === $field_type || 'switcher' === $field_type || 'select' === $field_type ) {
+            return 'profile';
+        }
+
+        return 'details';
+    }
+
+    /**
+     * @return array{title:string,description:string}
+     */
+    private function get_field_section_meta( string $section ) : array {
+        $sections = [
+            'profile'      => [
+                'title'       => 'Profile',
+                'description' => 'Core identity and visibility settings for this model.',
+            ],
+            'measurements' => [
+                'title'       => 'Measurements',
+                'description' => 'Quick physical details used across cards, listings, and profile pages.',
+            ],
+            'media'        => [
+                'title'       => 'Media',
+                'description' => 'Cover image and gallery assets. Drag gallery images to reorder them.',
+            ],
+            'links'        => [
+                'title'       => 'Links',
+                'description' => 'Public profile links and social destinations.',
+            ],
+            'details'      => [
+                'title'       => 'Additional Details',
+                'description' => 'Extra fields configured for this content type.',
+            ],
+        ];
+
+        return $sections[ $section ] ?? $sections['details'];
+    }
+
     private function get_field_grid_class( string $field_name, string $field_type ) : string {
         $k = strtolower( $field_name );
-        // Known model fields mapping to match screenshot model.jpeg
+
         if ( str_contains( $k, 'model-name' ) || $k === 'model_name' ) {
-            return 'jetsync-col-4';
+            return 'jetsync-col-6';
         }
         if ( str_contains( $k, 'model-section' ) || str_contains( $k, 'model_section' ) ) {
-            return 'jetsync-col-5';
+            return 'jetsync-col-4';
         }
-        if ( str_contains($k,'updated') ) {
-            return 'jetsync-col-3';
+        if ( str_contains( $k, 'updated' ) ) {
+            return 'jetsync-col-2';
         }
-        if ( str_contains( $k, 'cover' ) ) {
-            return 'jetsync-col-12 jetsync-media-row';
+        if ( str_contains( $k, 'cover' ) && 'media' === $field_type ) {
+            return 'jetsync-col-4 jetsync-media-row';
+        }
+        if ( 'gallery' === $field_type || str_contains( $k, 'gallery' ) ) {
+            return 'jetsync-col-12';
+        }
+        if ( 'media' === $field_type ) {
+            return 'jetsync-col-4';
         }
         if ( str_contains( $k, 'height' ) || str_contains( $k, 'bust' ) || str_contains( $k, 'waist' ) || str_contains( $k, 'hips' ) ) {
             return 'jetsync-col-3';
         }
         if ( str_contains( $k, 'shoes' ) || str_contains( $k, 'shoe' ) || str_contains( $k, 'hair' ) || str_contains( $k, 'eyes' ) || str_contains( $k, 'eye' ) ) {
             return 'jetsync-col-4';
-        }
-        if ( 'gallery' === $field_type || str_contains( $k, 'gallery' ) ) {
-            return 'jetsync-col-12';
-        }
-        if ( 'media' === $field_type ) {
-            return 'jetsync-col-12';
         }
         if ( str_contains( $k, 'instagram' ) || str_contains( $k, 'profil' ) || str_contains( $k, 'uri' ) || str_contains( $k, 'url' ) ) {
             return 'jetsync-col-12';
@@ -453,6 +505,7 @@ class MetaBoxManager {
 
         echo '<div class="jetsync-meta-box-container jetsync-model-layout">';
 
+        $current_section = '';
         foreach ( $fields as $field ) {
             $field_name  = $field->get_name();
             $field_title = $field->get_title();
@@ -480,13 +533,30 @@ class MetaBoxManager {
             }
 
             $grid_class = $this->get_field_grid_class( $field_name, $field_type );
+            $section = $this->get_field_section( $field_name, $field_type );
+
+            if ( $section !== $current_section ) {
+                if ( '' !== $current_section ) {
+                    echo '</div></section>';
+                }
+
+                $section_meta = $this->get_field_section_meta( $section );
+                echo '<section class="jetsync-field-section jetsync-section-' . \esc_attr( $section ) . '">';
+                echo '<div class="jetsync-section-header">';
+                echo '<div>';
+                echo '<h3>' . \esc_html( $section_meta['title'] ) . '</h3>';
+                echo '<p>' . \esc_html( $section_meta['description'] ) . '</p>';
+                echo '</div>';
+                echo '</div>';
+                echo '<div class="jetsync-section-grid">';
+                $current_section = $section;
+            }
 
             echo '<div class="jetsync-meta-field ' . \esc_attr( $grid_class ) . ' jetsync-type-' . \esc_attr( $field_type ) . '">';
 
-            // Label + tiny Name hint like model.jpeg shows "Name: cover-model"
             echo '<div class="jetsync-field-header">';
             echo '<label class="jetsync-field-label" for="' . \esc_attr( $field_name ) . '">' . \esc_html( $field_title ) . '</label>';
-            echo '<span class="jetsync-field-name-hint">Name: ' . \esc_html( $field_name ) . '</span>';
+            echo '<span class="jetsync-field-name-hint">' . \esc_html( $field_name ) . '</span>';
             echo '</div>';
 
             // Field input
@@ -556,7 +626,6 @@ class MetaBoxManager {
                     }
 
                     echo '<div class="jetsync-checkbox-field" data-field="' . \esc_attr( $field_name ) . '">';
-                    // Select all / Deselect all like model
                     echo '<div class="jetsync-checkbox-actions">';
                     echo '<button type="button" class="button button-small jetsync-select-all">Select all</button>';
                     echo '<button type="button" class="button button-small jetsync-deselect-all">Deselect all</button>';
@@ -610,7 +679,7 @@ class MetaBoxManager {
                     }
                     echo '</div>';
                     echo '<div class="jetsync-media-actions">';
-                    echo '<button type="button" class="button jetsync-media-select jetsync-btn-dark" data-multiple="0">CHOOSE MEDIA</button>';
+                    echo '<button type="button" class="button button-primary jetsync-media-select" data-multiple="0">Choose image</button>';
                     echo '<button type="button" class="button jetsync-media-clear">Clear</button>';
                     echo '</div>';
                     echo '</div>';
@@ -635,15 +704,15 @@ class MetaBoxManager {
                     foreach ( $ids as $attachment_id ) {
                         $thumb = \wp_get_attachment_image_url( (int) $attachment_id, 'thumbnail' );
                         if ( is_string( $thumb ) && '' !== $thumb ) {
-                            echo '<div class="jetsync-gallery-item" data-id="' . \esc_attr( (string) $attachment_id ) . '"><img src="' . \esc_url( $thumb ) . '" alt="" /><span class="jetsync-gallery-remove" title="Remove">&times;</span></div>';
+                            echo '<div class="jetsync-gallery-item" data-id="' . \esc_attr( (string) $attachment_id ) . '"><img src="' . \esc_url( $thumb ) . '" alt="" /><button type="button" class="jetsync-gallery-remove" title="Remove image" aria-label="Remove image">&times;</button></div>';
                         }
                     }
                     if ( empty( $ids ) ) {
-                        echo '<div class="jetsync-gallery-empty">No images selected.</div>';
+                        echo '<div class="jetsync-gallery-empty"><span class="dashicons dashicons-format-gallery"></span><strong>No gallery images yet</strong><span>Choose images to build the model portfolio.</span></div>';
                     }
                     echo '</div>';
                     echo '<div class="jetsync-media-actions">';
-                    echo '<button type="button" class="button jetsync-media-select jetsync-btn-dark" data-multiple="1">CHOOSE MEDIA</button>';
+                    echo '<button type="button" class="button button-primary jetsync-media-select" data-multiple="1">Choose gallery images</button>';
                     echo '<button type="button" class="button jetsync-media-clear">Clear</button>';
                     echo '</div>';
                     echo '</div>';
@@ -667,6 +736,10 @@ class MetaBoxManager {
                 echo '<p class="description jetsync-field-desc">' . \esc_html( $field_desc ) . '</p>';
             }
             echo '</div>';
+        }
+
+        if ( '' !== $current_section ) {
+            echo '</div></section>';
         }
 
         echo '</div>';
