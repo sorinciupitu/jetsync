@@ -3,7 +3,7 @@
  * Plugin Name:       JetSync
  * Plugin URI:        https://github.com/sorinciupitu/jetsync
  * Description:       A professional alternative and successor to JetEngine for custom post types, taxonomies, meta fields, relations, and listings.
- * Version:           1.6.2
+ * Version:           1.6.3
  * Author:            MAXDESIGN
  * Author URI:        https://max-design.ro
  * License:           GPL-2.0-or-later
