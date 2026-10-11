@@ -46,10 +46,13 @@ if ( file_exists( $puc_path ) ) {
 
     // Folosim namespace-ul complet (\YahnisElsts...) pentru a fi compatibili cu structura ta de cod (declare strict_types)
     $myUpdateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
-        'https://github.com/sorinciupitu/jetsync', // URL-ul către repo-ul tău GitHub
-        __FILE__, // Calea către acest fișier principal
-        'jetsync' // Slug-ul (numele folderului)
-    );
+    'https://github.com/sorinciupitu/jetsync',
+    __FILE__,
+    'jetsync'
+);
+
+    // Forțează verificarea prin GitHub Releases
+$myUpdateChecker->getVcsApi()->enableReleaseAssets();
 
     // Setăm branch-ul principal din care să citească update-urile (main)
     $myUpdateChecker->setBranch( 'main' );
