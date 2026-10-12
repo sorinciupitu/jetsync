@@ -362,7 +362,7 @@ class MetaBoxManager {
             return 'links';
         }
 
-        if ( str_contains( $k, 'model-name' ) || str_contains( $k, 'model_name' ) || str_contains( $k, 'model_section' ) || str_contains( $k, 'model-section' ) || str_contains( $k, 'updated' ) || 'checkbox' === $field_type || 'switcher' === $field_type || 'select' === $field_type ) {
+        if ( str_contains( $k, 'model-name' ) || $k === 'model_name' || str_contains( $k, 'model_section' ) || str_contains( $k, 'model-section' ) || str_contains( $k, 'updated' ) || 'checkbox' === $field_type || 'switcher' === $field_type || 'select' === $field_type || $k === 'model' ) {
             return 'profile';
         }
 
@@ -402,7 +402,7 @@ class MetaBoxManager {
     private function get_field_grid_class( string $field_name, string $field_type ) : string {
         $k = strtolower( $field_name );
 
-        if ( str_contains( $k, 'model-name' ) || $k === 'model_name' ) {
+        if ( str_contains( $k, 'model-name' ) || $k === 'model_name' || $k === 'model' ) {
             return 'jetsync-col-6';
         }
         if ( str_contains( $k, 'model-section' ) || str_contains( $k, 'model_section' ) ) {
@@ -455,7 +455,7 @@ class MetaBoxManager {
         if (!$is_model) return $fields;
 
         $order_map = [
-            'model-name' => 0, 'model_name' => 0,
+            'model' => 0, 'model-name' => 0, 'model_name' => 0,
             'model-section' => 1, 'model_section' => 1,
             'updated' => 2,
             'cover-model' => 3, 'cover_model' => 3, 'cover' => 3,
