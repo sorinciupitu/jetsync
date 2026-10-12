@@ -483,6 +483,57 @@ class MetaBoxManager {
     }
 
     /**
+     * Build the News Model selector from the public Men and Women profiles.
+     * The value is the profile slug, so it can be used directly by Elementor.
+     *
+     * @return array<int, array{value:string,label:string}>
+     */
+    private function get_news_model_options() : array {
+        $post_types = \apply_filters( 'jetsync_news_model_post_types', [ 'women', 'men' ] );
+        if ( ! is_array( $post_types ) ) {
+            $post_types = [ 'women', 'men' ];
+        }
+
+        $post_types = array_values( array_filter( array_map( '\\sanitize_key', $post_types ) ) );
+        if ( empty( $post_types ) ) {
+            return CptEditorPolicy::build_model_options( [] );
+        }
+
+        $query = new \WP_Query(
+            [
+                'post_type'      => $post_types,
+                'post_status'    => 'any',
+                'posts_per_page' => -1,
+                'orderby'        => 'title',
+                'order'          => 'ASC',
+                'no_found_rows'  => true,
+            ]
+        );
+
+        $models = [];
+        if ( is_array( $query->posts ) ) {
+            foreach ( $query->posts as $model ) {
+                if ( ! $model instanceof \WP_Post || '' === $model->post_name ) {
+                    continue;
+                }
+
+                $type_object = \get_post_type_object( $model->post_type );
+                $type_label = is_object( $type_object ) && isset( $type_object->labels->singular_name )
+                    ? (string) $type_object->labels->singular_name
+                    : ucfirst( (string) $model->post_type );
+
+                $models[] = [
+                    'slug'       => (string) $model->post_name,
+                    'title'      => (string) $model->post_title,
+                    'type_label' => $type_label,
+                ];
+            }
+        }
+
+        return CptEditorPolicy::build_model_options( $models );
+    }
+
+    /**
      * Rendering callback. Renders custom form input controls.
      *
      * @param \WP_Post $post Current post object.
@@ -509,7 +560,7 @@ class MetaBoxManager {
         foreach ( $fields as $field ) {
             $field_name  = $field->get_name();
             $field_title = $field->get_title();
-            $field_type  = $field->get_type();
+            $field_type  = CptEditorPolicy::get_effective_field_type( (string) $post->post_type, $field_name, $field->get_type() );
             $field_desc  = $field->get_description();
             $default     = $field->get_default_value();
 
@@ -567,7 +618,25 @@ class MetaBoxManager {
 
                 case 'select':
                     echo '<select id="' . \esc_attr( $field_name ) . '" name="' . \esc_attr( $field_name ) . '" class="jetsync-select">';
-                    foreach ( $field->get_options() as $opt ) {
+                    $is_news_model_field = CptEditorPolicy::is_news_model_field( (string) $post->post_type, $field_name );
+                    $options = $is_news_model_field ? $this->get_news_model_options() : $field->get_options();
+                    if ( $is_news_model_field ) {
+                        $value = CptEditorPolicy::resolve_model_value( $this->stringify_field_value( $value ), $options );
+                        $has_matching_option = false;
+                        foreach ( $options as $option ) {
+                            if ( isset( $option['value'] ) && (string) $option['value'] === (string) $value ) {
+                                $has_matching_option = true;
+                                break;
+                            }
+                        }
+                        if ( '' !== (string) $value && ! $has_matching_option ) {
+                            $options[] = [
+                                'value' => (string) $value,
+                                'label' => sprintf( 'Legacy value: %s', (string) $value ),
+                            ];
+                        }
+                    }
+                    foreach ( $options as $opt ) {
                         $selected = ( (string) $value === (string) $opt['value'] ) ? ' selected="selected"' : '';
                         echo '<option value="' . \esc_attr( $opt['value'] ) . '"' . $selected . '>' . \esc_html( $opt['label'] ) . '</option>';
                     }
@@ -643,7 +712,7 @@ class MetaBoxManager {
                     break;
 
                 case 'switcher':
-                    $switcher_labels = $this->get_switcher_labels( $field );
+                    $switcher_labels = CptEditorPolicy::get_switcher_labels( (string) $post->post_type, $field_name ) ?? $this->get_switcher_labels( $field );
                     $is_checked = ( $value === 'true' || $value === '1' || $value === true || $value === 1 || $value === 'on' ) ? ' checked="checked"' : '';
                     echo '<label class="jetsync-switcher">';
                     echo '<input type="checkbox" name="' . \esc_attr( $field_name ) . '" value="1"' . $is_checked . '>';
@@ -787,7 +856,7 @@ class MetaBoxManager {
             $fields = $metabox->get_fields();
             foreach ( $fields as $field ) {
                 $field_name = $field->get_name();
-                $field_type = $field->get_type();
+                $field_type = CptEditorPolicy::get_effective_field_type( (string) $post->post_type, $field_name, $field->get_type() );
 
                 if ( 'checkbox' === $field_type ) {
                     // Checkboxes send arrays

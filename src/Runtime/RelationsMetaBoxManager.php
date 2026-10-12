@@ -69,6 +69,10 @@ class RelationsMetaBoxManager {
             return;
         }
 
+        if ( CptEditorPolicy::should_hide_relation_boxes( $post_type ) ) {
+            return;
+        }
+
         foreach ( $this->relation_registry->get_all() as $rel ) {
             if ( ! $rel instanceof RelationDefinition ) {
                 continue;
@@ -332,4 +336,3 @@ class RelationsMetaBoxManager {
         }
     }
 }
-
