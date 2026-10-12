@@ -38,7 +38,7 @@ $autoloader->register();
 // ==========================================
 // Plugin Update Checker Initialization
 // ==========================================
-$puc_path = JETSYNC_PATH . 'includes/plugin-update-checker/plugin-update-checker.php';
+$puc_path = JETSYNC_PATH . 'includes/plugin-update-checker.php';
 
 // Verificăm dacă fișierul există pentru a nu genera o eroare fatală dacă lipsește accidental
 if ( file_exists( $puc_path ) ) {
