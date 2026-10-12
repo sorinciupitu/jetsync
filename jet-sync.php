@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define Plugin Constants.
-define( 'JETSYNC_VERSION', '1.6.7' );
+define( 'JETSYNC_VERSION', '1.6.8' );
 define( 'JETSYNC_PATH', \plugin_dir_path( __FILE__ ) );
 define( 'JETSYNC_URL', \plugin_dir_url( __FILE__ ) );
 
